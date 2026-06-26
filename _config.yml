@@ -1,9 +1,9 @@
 title: neitomic
 email: neitomic@gmail.com
-description: >- # this means to ignore newlines until "baseurl:"
+description: >-
   I'm trying to learn to write, also build an harbit to write.
-baseurl: "" # the subpath of your site, e.g. /blog
-url: "" # the base hostname & protocol for your site, e.g. http://example.com
+baseurl: ""
+url: "https://neitomic.xyz"
 twitter_username: neitomic
 github_username: neitomic
 
@@ -13,7 +13,6 @@ plugins:
   - jekyll-feed
   - jekyll-redirect-from
 
-
 whitelist:
   - jekyll-redirect-from
 
@@ -22,7 +21,27 @@ markdown: kramdown
 compress_html:
   clippings: all
   comments: [""]
-  endings: [html, head, body, li, dt, dd, rt, rp, optgroup, option, colgroup, caption, thead, tbody, tfoot, tr, td, th]
+  endings:
+    [
+      html,
+      head,
+      body,
+      li,
+      dt,
+      dd,
+      rt,
+      rp,
+      optgroup,
+      option,
+      colgroup,
+      caption,
+      thead,
+      tbody,
+      tfoot,
+      tr,
+      td,
+      th,
+    ]
   profile: false
   blanklines: false
   ignore:
@@ -37,8 +56,7 @@ collections:
     output: true
     permalink: /tagged/:slug/
 defaults:
-  -
-    scope:
+  - scope:
       path: ""
       type: my_tags
     values:
@@ -50,17 +68,15 @@ timezone: Asia/Ho_Chi_Minh
 future: false
 
 exclude:
-- README.md
-- LICENSE.md
-- vendor
-
+  - README.md
+  - LICENSE.md
+  - vendor
 
 Blog: /blog
 
 # Add general links to site pages here
 links:
   # Resume: /assets/resume.pdf
-  
 
 # Add links for more focus here
 special_links:
