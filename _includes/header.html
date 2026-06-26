@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<style>
+    :root { --link-color: #1B4D8F; --visited-color: #143A6B; --main-color: #3D6FA8; }
+    @media (prefers-color-scheme: dark) {
+        :root { --link-color: #6FA8DC; --visited-color: #9BC0E8; --main-color: #7BA8D0; }
+    }
+</style>
+
+<header>
+    <h2 class="title">{{ site.title }}</h2>
+    <nav>
+        <p>
+            <a href="{{ site.url }}">Home</a>
+            <a href="{{ site.url }}{{ site.Blog }}">Blog</a>
+
+            {% for link in site.links %}
+                <a href="{{ site.url }}{{ link[1] }}">{{ link[0] }}</a>
+            {% endfor %}
+
+            {% for link in site.special_links %}
+                    <a href="{{ link[1] }}">[{{ link[0] }}]</a>
+            {% endfor %}
+        </p>
+    </nav>
+</header>

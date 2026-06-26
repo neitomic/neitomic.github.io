@@ -1,36 +1,67 @@
-title: Hello, world! I'm Tien Nguyen
-description: > # this means to ignore newlines until "baseurl:"
-  Write an awesome description for your new site here. You can edit this
-  line in _config.yml. It will appear in your document head meta (for
-  Google search results) and in your feed.xml site description.
-permalink: ':title/'
+title: neitomic
+email: neitomic@gmail.com
+description: >- # this means to ignore newlines until "baseurl:"
+  I'm trying to learn to write, also build an harbit to write.
 baseurl: "" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
+twitter_username: neitomic
+github_username: neitomic
 
-# Author Settings
-author: Tien Nguyen # add your name
-author-img: tien-nguyen.jpg # add your photo
-about-author: I am a web developer focusing on front-end development. Always hungry to keep learning. # add description
-twitter: tiennt4 # add your Twitter handle
-facebook: tiennt4 # add your Facebook handle
-github: thanhtien522 # add your Github handle
-linkedin: thanhtien # add your Linkedin handle
-email: thanhtien522@gmail.com # add your Email address
-
-# Disqus
-discus-identifier: mr-brown # add your discus identifier
-
-# Tracker
-analytics: UA-108940318-1 # Google Analytics
-
-# Build Settings
-markdown: kramdown
+# Build settings
+theme: jekyll-bear-theme
 plugins:
-  - jekyll-sitemap
-  - jekyll-paginate
-  - jemoji
+  - jekyll-feed
+  - jekyll-redirect-from
 
-paginate: 8
-paginate_path: "/page/:num"
 
-exclude: ["node_modules", "gulpfile.js", "package.json", "yarn.lock"]
+whitelist:
+  - jekyll-redirect-from
+
+markdown: kramdown
+
+compress_html:
+  clippings: all
+  comments: [""]
+  endings: [html, head, body, li, dt, dd, rt, rp, optgroup, option, colgroup, caption, thead, tbody, tfoot, tr, td, th]
+  profile: false
+  blanklines: false
+  ignore:
+    envs: []
+
+# sass:
+#   sass_dir: css
+#   style:    compressed
+
+collections:
+  my_tags:
+    output: true
+    permalink: /tagged/:slug/
+defaults:
+  -
+    scope:
+      path: ""
+      type: my_tags
+    values:
+      layout: tagged
+
+# baseurl: ""
+permalink: /blog/:slug
+timezone: Asia/Ho_Chi_Minh
+future: false
+
+exclude:
+- README.md
+- LICENSE.md
+- vendor
+
+
+Blog: /blog
+
+# Add general links to site pages here
+links:
+  # Resume: /assets/resume.pdf
+  
+
+# Add links for more focus here
+special_links:
+  # "Search": https://duckduckgo.com
