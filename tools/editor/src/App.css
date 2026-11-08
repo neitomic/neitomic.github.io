@@ -4,6 +4,10 @@
   padding: 2.5rem 1.5rem 4rem;
 }
 
+.shell:has(.editor.with-preview) {
+  max-width: min(96rem, 100%);
+}
+
 .brand .eyebrow {
   margin: 0 0 0.35rem;
   font-size: 0.75rem;
@@ -227,6 +231,137 @@ code {
 button.mode-toggle.active {
   border-color: var(--ink);
   background: color-mix(in srgb, var(--bg-accent) 80%, white);
+}
+
+.editor-split {
+  display: block;
+}
+
+.editor-split.split-on {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .editor-split.split-on {
+    grid-template-columns: 1fr;
+  }
+}
+
+.preview-pane {
+  margin-top: 0.35rem;
+  padding: 0.85rem 1rem 1.25rem;
+  border-left: 1px solid var(--line);
+  min-height: min(60vh, 32rem);
+  max-width: 72ch;
+}
+
+@media (max-width: 900px) {
+  .preview-pane {
+    border-left: none;
+    border-top: 1px solid var(--line);
+    padding-left: 0;
+  }
+}
+
+.preview-label {
+  margin: 0 0 0.75rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.preview-title {
+  margin: 0 0 0.85rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.preview-body {
+  font-size: 1.05rem;
+  line-height: 1.65;
+  max-width: 72ch;
+}
+
+.preview-body > *:first-child {
+  margin-top: 0;
+}
+
+.preview-body h1,
+.preview-body h2,
+.preview-body h3 {
+  font-family: var(--font-display);
+  line-height: 1.25;
+  margin: 1.4em 0 0.5em;
+}
+
+.preview-body p,
+.preview-body ul,
+.preview-body ol,
+.preview-body blockquote,
+.preview-body pre {
+  margin: 0 0 1em;
+}
+
+.preview-body a {
+  color: #3d5a45;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.preview-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1em 0;
+}
+
+.preview-body code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: color-mix(in srgb, var(--bg-accent) 70%, white);
+  padding: 0.1em 0.3em;
+  border-radius: 0.2em;
+}
+
+.preview-body pre {
+  overflow: auto;
+  padding: 0.85rem 1rem;
+  background: color-mix(in srgb, var(--bg-accent) 75%, white);
+  border-radius: 0.35rem;
+}
+
+.preview-body pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.preview-body blockquote {
+  border-left: 3px solid var(--line);
+  padding-left: 0.9rem;
+  color: var(--muted);
+}
+
+.preview-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 1em;
+  font-size: 0.95rem;
+}
+
+.preview-body th,
+.preview-body td {
+  border: 1px solid var(--line);
+  padding: 0.35rem 0.55rem;
+  text-align: left;
 }
 
 .new-form {

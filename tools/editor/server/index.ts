@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
+import { readRepoAsset } from './assets.ts'
 import { getRepoInfo } from './repo.ts'
 import {
   createPost,
@@ -21,9 +22,9 @@ app.onError((err, c) => {
   }
   const message = err instanceof Error ? err.message : String(err)
   const status =
-    /not found|ENOENT/i.test(message)
+    /not found|ENOENT|Not a file/i.test(message)
       ? 404
-      : /already exists|required|must|Invalid|escapes/i.test(message)
+      : /already exists|required|must|Invalid|escapes|Only \/assets/i.test(message)
         ? 400
         : 500
   return c.json({ error: message }, status)
@@ -40,6 +41,27 @@ app.get('/api/health', (c) =>
 app.get('/api/repo', async (c) => {
   const info = await getRepoInfo()
   return c.json(info)
+})
+
+// Preview trust: serve site-root /assets/... from the Jekyll checkout.
+app.get('/assets/*', async (c) => {
+  const pathname = new URL(c.req.url).pathname
+  try {
+    const { bytes, type } = await readRepoAsset(pathname)
+    return new Response(new Uint8Array(bytes), {
+      status: 200,
+      headers: {
+        'Content-Type': type,
+        'Cache-Control': 'no-store',
+      },
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    if (/ENOENT|Not a file|no such file/i.test(message)) {
+      throw new HTTPException(404, { message: 'Asset not found' })
+    }
+    throw err
+  }
 })
 
 app.get('/api/posts', async (c) => {

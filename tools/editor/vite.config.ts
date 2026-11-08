@@ -14,9 +14,13 @@ export default defineConfig({
         target: `http://127.0.0.1:${API_PORT}`,
         changeOrigin: false,
       },
+      '/assets': {
+        target: `http://127.0.0.1:${API_PORT}`,
+        changeOrigin: false,
+      },
     },
   },
   test: {
-    include: ['server/**/*.test.ts'],
+    include: ['server/**/*.test.ts', 'src/**/*.test.ts'],
   },
 })

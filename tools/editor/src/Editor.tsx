@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { PostDocument } from './api'
 import { savePost, saveRawPost } from './api'
 import { MarkdownField } from './MarkdownField'
+import { PreviewPane } from './PreviewPane'
 import { parseRaw, rebuildRaw } from './rawBuffer'
 
 type Props = {
@@ -17,6 +18,7 @@ const AUTOSAVE_MS = 900
 
 export function Editor({ post, onBack, onSaved }: Props) {
   const [mode, setMode] = useState<EditorMode>('write')
+  const [previewOn, setPreviewOn] = useState(true)
   const [title, setTitle] = useState(post.title)
   const [body, setBody] = useState(post.body)
   const [raw, setRaw] = useState(post.raw)
@@ -49,6 +51,7 @@ export function Editor({ post, onBack, onSaved }: Props) {
   // refreshes `post` after every save — must not kick Source mode back to Write.
   useEffect(() => {
     setMode('write')
+    setPreviewOn(true)
     setTitle(post.title)
     setBody(post.body)
     setRaw(post.raw)
@@ -121,7 +124,6 @@ export function Editor({ post, onBack, onSaved }: Props) {
 
       if (savingMode === 'source') {
         if (rawRef.current === savingRaw) setRaw(saved.raw)
-        // Keep write-mode fields in sync for the next mode switch.
         setTitle(saved.title)
         setBody(saved.body)
         const stillDirty = rawRef.current !== saved.raw
@@ -165,7 +167,7 @@ export function Editor({ post, onBack, onSaved }: Props) {
             : 'Saved'
 
   return (
-    <div className="editor">
+    <div className={`editor ${previewOn ? 'with-preview' : ''}`}>
       <div className="editor-bar">
         <button type="button" className="ghost" onClick={onBack}>
           ← Library
@@ -176,6 +178,14 @@ export function Editor({ post, onBack, onSaved }: Props) {
           onClick={() => (mode === 'source' ? enterWrite() : enterSource())}
         >
           {mode === 'source' ? 'Write' : 'Source'}
+        </button>
+        <button
+          type="button"
+          className={`ghost mode-toggle ${previewOn ? 'active' : ''}`}
+          onClick={() => setPreviewOn((v) => !v)}
+          aria-pressed={previewOn}
+        >
+          Preview
         </button>
         <p className={`save-pill ${saveState}`} aria-live="polite">
           {statusLabel}
@@ -200,6 +210,12 @@ export function Editor({ post, onBack, onSaved }: Props) {
         )}
         <span className="sep">·</span>
         <span>{mode === 'source' ? 'raw source' : 'title + body'}</span>
+        {previewOn && (
+          <>
+            <span className="sep">·</span>
+            <span>live preview</span>
+          </>
+        )}
       </p>
 
       {saveError && (
@@ -208,36 +224,44 @@ export function Editor({ post, onBack, onSaved }: Props) {
         </p>
       )}
 
-      {mode === 'write' ? (
-        <>
-          <label className="title-field">
-            <span className="sr-only">Title</span>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Title"
-              spellCheck
-            />
-          </label>
-          <div className="body-field">
-            <MarkdownField
-              mode="write"
-              value={body}
-              onChange={setBody}
-              placeholder="Write in Markdown…"
-            />
-          </div>
-        </>
-      ) : (
-        <div className="body-field source-field">
-          <MarkdownField
-            mode="source"
-            value={raw}
-            onChange={setRaw}
-            placeholder="Full Markdown source including frontmatter…"
-          />
+      <div className={`editor-split ${previewOn ? 'split-on' : ''}`}>
+        <div className="editor-main">
+          {mode === 'write' ? (
+            <>
+              <label className="title-field">
+                <span className="sr-only">Title</span>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Title"
+                  spellCheck
+                />
+              </label>
+              <div className="body-field">
+                <MarkdownField
+                  mode="write"
+                  value={body}
+                  onChange={setBody}
+                  placeholder="Write in Markdown…"
+                />
+              </div>
+            </>
+          ) : (
+            <div className="body-field source-field">
+              <MarkdownField
+                mode="source"
+                value={raw}
+                onChange={setRaw}
+                placeholder="Full Markdown source including frontmatter…"
+              />
+            </div>
+          )}
         </div>
-      )}
+
+        {previewOn && (
+          <PreviewPane mode={mode} body={body} raw={raw} title={title} />
+        )}
+      </div>
     </div>
   )
 }
