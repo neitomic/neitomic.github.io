@@ -41,6 +41,26 @@ Open the UI: library of `_posts/`, open a post. Default writing state is **Focus
 
 **Publish:** **Publish…** opens a sheet with git status, diff peek, commit message (default `Add/Update post: {title}`), and **Commit & push to GitHub Pages**. Uses system `git` on your machine (SSH/credential helper) — no tokens in the app. If push fails after commit, the UI says so and never claims published.
 
+**Review writing (on-demand coach):** **Review writing** (near Publish) opens a sheet with the shared coach prompt for the current post. It does **not** lint while you type and never rewrites the file. Without an API key, use **Copy prompt for agent** and paste into Cursor. With a key in the shell that runs the editor, **Run LLM review** (or auto-run on open) calls an OpenAI-compatible chat API and shows Structure / Coverage gaps / Clarity / optional Grammar.
+
+```bash
+# optional — in the same shell before `just editor`
+export EDITOR_REVIEW_API_KEY=sk-...   # or OPENAI_API_KEY
+# optional overrides:
+# export EDITOR_REVIEW_API_BASE=https://api.openai.com/v1
+# export EDITOR_REVIEW_MODEL=gpt-4o-mini
+```
+
+Shared prompt (editor + CLI + future agent): `tools/editor/prompts/writing-coach.md`.
+
+CLI / agent bridge from repo root:
+
+```bash
+just review-post _posts/YYYY-MM-DD-slug.md
+# optional LLM:
+EDITOR_REVIEW_API_KEY=sk-... just review-post _posts/... -- --run
+```
+
 ## Tests
 
 ```bash
@@ -48,7 +68,7 @@ just editor-test
 # or: cd tools/editor && npm test
 ```
 
-Other recipes from the repo root: `just editor-install`, `just editor-build`, `just editor-clean` (see root `justfile`).
+Other recipes from the repo root: `just editor-install`, `just editor-build`, `just editor-clean`, `just review-post` (see root `justfile`).
 
 Golden-file check: for every file in `_posts/`, parse → serialize with no edits → **byte-identical** to the original.
 
@@ -74,6 +94,8 @@ Optional API port: `EDITOR_API_PORT=8787`.
 - `GET /api/git/status?post=` — porcelain status + suggested `_posts`/`assets` paths
 - `POST /api/git/diff` — `{ paths }` → unified diff peek
 - `POST /api/git/publish` — `{ paths, message }` → stage/commit/push via system `git`
+- `GET /api/review/config` — whether an LLM key is configured (never returns the key)
+- `POST /api/review` — `{ filename|path, title, body, run? }` → filled coach `prompt`; if `run` and `EDITOR_REVIEW_API_KEY`/`OPENAI_API_KEY` set, also `review` Markdown
 
 ## Jekyll
 

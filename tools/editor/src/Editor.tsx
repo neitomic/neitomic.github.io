@@ -4,6 +4,7 @@ import { savePost, saveRawPost } from './api'
 import { MarkdownField } from './MarkdownField'
 import { PreviewPane } from './PreviewPane'
 import { PublishSheet } from './PublishSheet'
+import { ReviewSheet } from './ReviewSheet'
 import { parseRaw, rebuildRaw } from './rawBuffer'
 
 type Props = {
@@ -34,6 +35,7 @@ export function Editor({ post, onBack, onSaved }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const [publishOpen, setPublishOpen] = useState(false)
+  const [reviewOpen, setReviewOpen] = useState(false)
   const [lastPublish, setLastPublish] = useState<PublishResult | null>(null)
 
   const dirty =
@@ -92,7 +94,7 @@ export function Editor({ post, onBack, onSaved }: Props) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Escape') return
-      if (publishOpen) return
+      if (publishOpen || reviewOpen) return
       if (focusOn) {
         e.preventDefault()
         exitFocus()
@@ -100,7 +102,7 @@ export function Editor({ post, onBack, onSaved }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [focusOn, exitFocus, publishOpen])
+  }, [focusOn, exitFocus, publishOpen, reviewOpen])
 
   function enterSource() {
     if (focusOn) exitFocus()
@@ -239,6 +241,43 @@ export function Editor({ post, onBack, onSaved }: Props) {
     setPublishOpen(true)
   }
 
+  function openReview() {
+    if (focusOn) exitFocus()
+    // Prefer write-mode title/body; if Source is open, parse raw for the coach.
+    if (modeRef.current === 'source') {
+      try {
+        const parsed = parseRaw(rawRef.current)
+        setTitle(parsed.title)
+        setBody(parsed.body)
+      } catch {
+        /* sheet still opens with last known title/body */
+      }
+    }
+    setReviewOpen(true)
+  }
+
+  function reviewTitle() {
+    if (mode === 'source') {
+      try {
+        return parseRaw(raw).title
+      } catch {
+        return title
+      }
+    }
+    return title
+  }
+
+  function reviewBody() {
+    if (mode === 'source') {
+      try {
+        return parseRaw(raw).body
+      } catch {
+        return body
+      }
+    }
+    return body
+  }
+
   useEffect(() => {
     if (!dirty) return
     const handle = window.setTimeout(() => {
@@ -284,6 +323,9 @@ export function Editor({ post, onBack, onSaved }: Props) {
           <p className={`save-pill ${saveState}`} aria-live="polite">
             {statusLabel}
           </p>
+          <button type="button" className="ghost" onClick={openReview}>
+            Review writing
+          </button>
           <button
             type="button"
             className="ghost"
@@ -331,6 +373,9 @@ export function Editor({ post, onBack, onSaved }: Props) {
                 Focus
               </button>
             )}
+            <button type="button" className="ghost" onClick={openReview}>
+              Review writing
+            </button>
             <button type="button" className="ghost" onClick={openPublish}>
               Publish…
             </button>
@@ -425,6 +470,16 @@ export function Editor({ post, onBack, onSaved }: Props) {
             setLastPublish(res)
             setSaveState('saved')
           }}
+        />
+      )}
+
+      {reviewOpen && (
+        <ReviewSheet
+          filename={baseline.filename}
+          title={reviewTitle()}
+          body={reviewBody()}
+          onEnsureSaved={ensureSaved}
+          onClose={() => setReviewOpen(false)}
         />
       )}
     </div>

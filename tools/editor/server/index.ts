@@ -17,6 +17,11 @@ import {
   writePost,
   writeRawPost,
 } from './posts.ts'
+import {
+  buildFilledPrompt,
+  publicReviewConfig,
+  runCoachLlm,
+} from './review.ts'
 
 const HOST = '127.0.0.1'
 const PORT = Number(process.env.EDITOR_API_PORT ?? 8787)
@@ -183,6 +188,89 @@ app.post('/api/git/publish', async (c) => {
   }
   const result = await publishPaths({ paths: body.paths, message })
   return c.json(result, result.ok ? 200 : 409)
+})
+
+/** Writing coach — shared prompt + optional OpenAI-compatible LLM (opt-in via env). */
+app.get('/api/review/config', (c) => c.json(publicReviewConfig()))
+
+app.post('/api/review', async (c) => {
+  const body = await c.req.json<{
+    path?: string
+    filename?: string
+    title?: string
+    body?: string
+    run?: boolean
+  }>()
+  const title = typeof body.title === 'string' ? body.title : ''
+  const postBody = typeof body.body === 'string' ? body.body : ''
+  const filename =
+    typeof body.filename === 'string' && body.filename.trim()
+      ? body.filename.trim()
+      : ''
+  const postPath =
+    typeof body.path === 'string' && body.path.trim()
+      ? body.path.trim()
+      : filename
+        ? `_posts/${filename}`
+        : ''
+  if (!postPath) {
+    throw new HTTPException(400, {
+      message: 'path or filename is required',
+    })
+  }
+
+  const prompt = await buildFilledPrompt({
+    path: postPath,
+    title,
+    body: postBody,
+  })
+  const cfg = publicReviewConfig()
+  const wantRun = body.run === true
+
+  if (!wantRun) {
+    return c.json({
+      mode: 'prompt-only' as const,
+      prompt,
+      review: null,
+      ...cfg,
+    })
+  }
+
+  if (!cfg.llmConfigured) {
+    return c.json(
+      {
+        mode: 'prompt-only' as const,
+        prompt,
+        review: null,
+        error:
+          'No EDITOR_REVIEW_API_KEY / OPENAI_API_KEY — copy the prompt into Cursor/an agent, or set a key and retry.',
+        ...cfg,
+      },
+      200,
+    )
+  }
+
+  try {
+    const review = await runCoachLlm(prompt)
+    return c.json({
+      mode: 'llm' as const,
+      prompt,
+      review,
+      ...cfg,
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return c.json(
+      {
+        mode: 'prompt-only' as const,
+        prompt,
+        review: null,
+        error: message,
+        ...cfg,
+      },
+      200,
+    )
+  }
 })
 
 console.log(`[editor-api] listening on http://${HOST}:${PORT} (local only)`)

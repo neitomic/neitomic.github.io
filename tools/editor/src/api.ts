@@ -160,3 +160,39 @@ export async function publishToGitHub(input: {
   }
   return data
 }
+
+export type ReviewConfig = {
+  llmConfigured: boolean
+  model: string | null
+  baseUrl: string | null
+  envHint: string
+}
+
+export type ReviewResponse = ReviewConfig & {
+  mode: 'llm' | 'prompt-only'
+  prompt: string
+  review: string | null
+  error?: string
+}
+
+export function fetchReviewConfig() {
+  return fetchJson<ReviewConfig>('/api/review/config')
+}
+
+export function requestWritingReview(input: {
+  filename: string
+  title: string
+  body: string
+  run?: boolean
+}) {
+  return fetchJson<ReviewResponse>('/api/review', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      filename: input.filename,
+      title: input.title,
+      body: input.body,
+      run: input.run === true,
+    }),
+  })
+}

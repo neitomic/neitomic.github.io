@@ -358,6 +358,62 @@ code {
   margin-top: 1.15rem;
 }
 
+.review-sheet {
+  width: min(44rem, 100%);
+}
+
+.review-config {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.review-bridge h3,
+.review-output h3,
+.review-prompt h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.review-bridge p {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.review-output {
+  margin: 0.5rem 0 0.75rem;
+}
+
+.review-body {
+  max-height: min(50vh, 28rem);
+  overflow: auto;
+  padding: 0.75rem 0.85rem;
+  background: color-mix(in srgb, var(--bg-accent) 55%, white);
+  border-radius: 0.35rem;
+}
+
+.review-prompt {
+  margin-top: 1rem;
+}
+
+.review-prompt pre {
+  margin: 0;
+  max-height: 16rem;
+  overflow: auto;
+  padding: 0.75rem 0.85rem;
+  background: color-mix(in srgb, var(--bg-accent) 70%, white);
+  border-radius: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .editor-file {
   margin: 0 0 1rem;
   color: var(--muted);
