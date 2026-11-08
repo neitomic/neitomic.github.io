@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 
 const API_PORT = Number(process.env.EDITOR_API_PORT ?? 8787)
 
@@ -15,5 +15,8 @@ export default defineConfig({
         changeOrigin: false,
       },
     },
+  },
+  test: {
+    include: ['server/**/*.test.ts'],
   },
 })

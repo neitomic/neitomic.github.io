@@ -1,149 +1,139 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import {
+  fetchJson,
+  getPost,
+  listPosts,
+  type Health,
+  type PostDocument,
+  type PostListItem,
+  type RepoInfo,
+} from './api'
+import { Editor } from './Editor'
+import { Library } from './Library'
+import { NewPost } from './NewPost'
 import './App.css'
 
-type Health = {
-  ok: boolean
-  service?: string
-  bind?: string
-}
-
-type RepoInfo = {
-  repoRoot: string
-  branch: string | null
-  postsExists: boolean
-  gitOk: boolean
-  error?: string
-}
-
-type LoadState =
-  | { status: 'loading' }
-  | { status: 'ready'; health: Health; repo: RepoInfo }
-  | { status: 'error'; message: string }
-
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url)
-  if (!res.ok) {
-    throw new Error(`${url} → ${res.status} ${res.statusText}`)
-  }
-  return res.json() as Promise<T>
-}
+type View =
+  | { name: 'boot' }
+  | { name: 'library' }
+  | { name: 'new' }
+  | { name: 'editor'; post: PostDocument }
+  | { name: 'fatal'; message: string }
 
 function App() {
-  const [state, setState] = useState<LoadState>({ status: 'loading' })
+  const [view, setView] = useState<View>({ name: 'boot' })
+  const [health, setHealth] = useState<Health | null>(null)
+  const [repo, setRepo] = useState<RepoInfo | null>(null)
+  const [posts, setPosts] = useState<PostListItem[]>([])
+  const [listLoading, setListLoading] = useState(false)
+  const [listError, setListError] = useState<string | null>(null)
+
+  const refreshPosts = useCallback(async () => {
+    setListLoading(true)
+    setListError(null)
+    try {
+      const data = await listPosts()
+      setPosts(data.posts)
+    } catch (err) {
+      setListError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setListLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
-
-    async function load() {
+    async function boot() {
       try {
-        const [health, repo] = await Promise.all([
+        const [h, r] = await Promise.all([
           fetchJson<Health>('/api/health'),
           fetchJson<RepoInfo>('/api/repo'),
         ])
-        if (!cancelled) {
-          setState({ status: 'ready', health, repo })
-        }
+        if (cancelled) return
+        setHealth(h)
+        setRepo(r)
+        setView({ name: 'library' })
+        await refreshPosts()
       } catch (err) {
         if (!cancelled) {
-          setState({
-            status: 'error',
+          setView({
+            name: 'fatal',
             message: err instanceof Error ? err.message : String(err),
           })
         }
       }
     }
-
-    void load()
+    void boot()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [refreshPosts])
+
+  async function openPost(filename: string) {
+    try {
+      const post = await getPost(filename)
+      setView({ name: 'editor', post })
+    } catch (err) {
+      setListError(err instanceof Error ? err.message : String(err))
+      setView({ name: 'library' })
+    }
+  }
 
   return (
     <main className="shell">
-      <header className="brand">
-        <p className="eyebrow">neitomic.xyz</p>
-        <h1>Local editor</h1>
-        <p className="lede">
-          M0 skeleton — binds this checkout and checks git / <code>_posts/</code>.
-          Localhost only; no cloud.
-        </p>
-      </header>
+      {view.name === 'boot' && <p className="status">Starting…</p>}
 
-      {state.status === 'loading' && <p className="status">Checking API…</p>}
-
-      {state.status === 'error' && (
+      {view.name === 'fatal' && (
         <section className="panel error" aria-live="polite">
           <h2>Could not reach API</h2>
-          <p>{state.message}</p>
+          <p>{view.message}</p>
           <p className="hint">
-            Run <code>npm run dev</code> from <code>tools/editor</code> so the UI and
-            API start together.
+            Run <code>npm run dev</code> from <code>tools/editor</code>.
           </p>
         </section>
       )}
 
-      {state.status === 'ready' && (
+      {view.name === 'library' && repo && (
         <>
-          <section className="panel" aria-labelledby="health-heading">
-            <h2 id="health-heading">Health</h2>
-            <dl>
-              <div>
-                <dt>Status</dt>
-                <dd className={state.health.ok ? 'ok' : 'bad'}>
-                  {state.health.ok ? 'ok' : 'fail'}
-                </dd>
-              </div>
-              <div>
-                <dt>Service</dt>
-                <dd>{state.health.service ?? '—'}</dd>
-              </div>
-              <div>
-                <dt>Bind</dt>
-                <dd>
-                  <code>{state.health.bind ?? '—'}</code>
-                </dd>
-              </div>
-            </dl>
-          </section>
-
-          <section className="panel" aria-labelledby="repo-heading">
-            <h2 id="repo-heading">Repo</h2>
-            <dl>
-              <div>
-                <dt>repoRoot</dt>
-                <dd>
-                  <code>{state.repo.repoRoot}</code>
-                </dd>
-              </div>
-              <div>
-                <dt>Branch</dt>
-                <dd>
-                  {state.repo.branch ? (
-                    <code>{state.repo.branch}</code>
-                  ) : (
-                    <span className="bad">unknown</span>
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>git ok</dt>
-                <dd className={state.repo.gitOk ? 'ok' : 'bad'}>
-                  {state.repo.gitOk ? 'yes' : 'no'}
-                </dd>
-              </div>
-              <div>
-                <dt>_posts/</dt>
-                <dd className={state.repo.postsExists ? 'ok' : 'bad'}>
-                  {state.repo.postsExists ? 'found' : 'missing'}
-                </dd>
-              </div>
-            </dl>
-            {state.repo.error && (
-              <p className="hint error-text">{state.repo.error}</p>
-            )}
-          </section>
+          <Library
+            repo={repo}
+            posts={posts}
+            loading={listLoading}
+            error={listError}
+            onOpen={(f) => void openPost(f)}
+            onNew={() => setView({ name: 'new' })}
+            onRefresh={() => void refreshPosts()}
+          />
+          {health && (
+            <p className="footer-meta">
+              API {health.ok ? 'ok' : 'down'}
+              {health.bind ? ` · ${health.bind}` : ''}
+            </p>
+          )}
         </>
+      )}
+
+      {view.name === 'new' && (
+        <NewPost
+          onCancel={() => setView({ name: 'library' })}
+          onCreated={(filename) => {
+            void refreshPosts().then(() => openPost(filename))
+          }}
+        />
+      )}
+
+      {view.name === 'editor' && (
+        <Editor
+          post={view.post}
+          onBack={() => {
+            setView({ name: 'library' })
+            void refreshPosts()
+          }}
+          onSaved={(post) => {
+            setView({ name: 'editor', post })
+            void refreshPosts()
+          }}
+        />
       )}
     </main>
   )

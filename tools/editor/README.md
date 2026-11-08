@@ -1,8 +1,8 @@
-# neitomic local editor (M0)
+# neitomic local editor
 
-Local-only writing app scaffold for this Jekyll site. It runs on your machine against the real git checkout — **no cloud, no accounts, no tokens in the app**.
+Local-only writing app for this Jekyll site. It runs on your machine against the real git checkout — **no cloud, no accounts, no tokens in the app**.
 
-Later milestones will open/save `_posts/`, preview Markdown, drop images under `/assets/...`, and publish by shelling out to system `git`. This milestone only binds the repo and proves the API + UI loop.
+Current milestones in-tree: **M0** (repo bind) + **M1** (post library, open/save, new-post scaffold). Later: CodeMirror polish, preview, focus, `/assets/...` image drop, git commit/push UI.
 
 ## Requirements
 
@@ -25,37 +25,41 @@ That starts:
 | Vite UI | `http://127.0.0.1:5173` |
 | Hono API | `http://127.0.0.1:8787` (proxied as `/api` from Vite) |
 
-Both bind **`127.0.0.1` only** — not reachable from other machines on the network.
+Both bind **`127.0.0.1` only**.
 
-Open the UI URL. You should see health status plus `repoRoot`, branch, whether `_posts/` exists, and whether git looks OK.
+Open the UI: library of `_posts/`, open a post, edit title/body, Save (autosave while dirty). **New post** scaffolds `YYYY-MM-DD-slug.md` with `layout`, `title`, `date` (+0700), `tags`.
+
+## Tests
+
+```bash
+npm test
+```
+
+Golden-file check: for every file in `_posts/`, parse → serialize with no edits → **byte-identical** to the original.
 
 ## `repoRoot` default
-
-When launched from `tools/editor` (or anywhere inside this checkout), the API resolves `repoRoot` via:
 
 ```bash
 git rev-parse --show-toplevel
 ```
 
-So from `tools/editor` that is the Jekyll repo root (two levels up), not `tools/editor` itself.
+Override: `EDITOR_REPO_ROOT=/absolute/path/to/neitomic.github.io npm run dev`
 
-Override if needed:
+Optional API port: `EDITOR_API_PORT=8787`.
 
-```bash
-EDITOR_REPO_ROOT=/absolute/path/to/neitomic.github.io npm run dev
-```
+## API
 
-Optional API port override: `EDITOR_API_PORT=8787` (Vite proxy reads the same env at config load time).
-
-## API (M0)
-
-- `GET /api/health` — liveness JSON (`ok`, bind info)
+- `GET /api/health` — liveness
 - `GET /api/repo` — `{ repoRoot, branch, postsExists, gitOk, error? }`
+- `GET /api/posts` — list posts
+- `GET /api/posts/:filename` — open one post (title, body, frontmatter, raw)
+- `PUT /api/posts/:filename` — save `{ title, body }` (stable frontmatter; no-edit saves keep exact bytes)
+- `POST /api/posts` — create `{ title, slug?, datePrefix? }`
 
-## Out of scope (later)
+## Image paths (later)
 
-CodeMirror, open/save posts, preview, focus mode, image ingest, commit/push UI.
+Site-root `/assets/...` (not wired in M1).
 
 ## Jekyll
 
-`tools/`, `node_modules`, and Node lock/manifest files are listed in the site `_config.yml` `exclude` so this app is never built into GitHub Pages.
+`tools/`, `node_modules`, and Node lock/manifest files are in `_config.yml` `exclude`.
