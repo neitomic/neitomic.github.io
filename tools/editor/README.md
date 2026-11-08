@@ -12,6 +12,14 @@ Current milestones in-tree: **M0–M6** (v1 complete on the `editor-v1` integrat
 
 ## Run
 
+From the **repo root** (needs [`just`](https://github.com/casey/just)):
+
+```bash
+just editor
+```
+
+Or without Just:
+
 ```bash
 cd tools/editor
 npm install
@@ -36,8 +44,11 @@ Open the UI: library of `_posts/`, open a post. Default writing state is **Focus
 ## Tests
 
 ```bash
-npm test
+just editor-test
+# or: cd tools/editor && npm test
 ```
+
+Other recipes from the repo root: `just editor-install`, `just editor-build`, `just editor-clean` (see root `justfile`).
 
 Golden-file check: for every file in `_posts/`, parse → serialize with no edits → **byte-identical** to the original.
 
