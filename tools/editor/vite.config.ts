@@ -1,0 +1,26 @@
+import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vitest/config'
+
+const API_PORT = Number(process.env.EDITOR_API_PORT ?? 8787)
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    host: '127.0.0.1',
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: `http://127.0.0.1:${API_PORT}`,
+        changeOrigin: false,
+      },
+      '/assets': {
+        target: `http://127.0.0.1:${API_PORT}`,
+        changeOrigin: false,
+      },
+    },
+  },
+  test: {
+    include: ['server/**/*.test.ts', 'src/**/*.test.ts'],
+  },
+})
