@@ -4,7 +4,7 @@ import { savePost, saveRawPost } from './api'
 import { MarkdownField } from './MarkdownField'
 import { PreviewPane } from './PreviewPane'
 import { PublishSheet } from './PublishSheet'
-import { ReviewSheet } from './ReviewSheet'
+import { ReviewPane } from './ReviewPane'
 import { parseRaw, rebuildRaw } from './rawBuffer'
 
 type Props = {
@@ -35,7 +35,14 @@ export function Editor({ post, onBack, onSaved }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const [publishOpen, setPublishOpen] = useState(false)
-  const [reviewOpen, setReviewOpen] = useState(false)
+  const [reviewOn, setReviewOn] = useState(false)
+  /** Snapshot of title/body when the review panel opened (avoid re-running on every keystroke). */
+  const [reviewSnapshot, setReviewSnapshot] = useState<{
+    title: string
+    body: string
+    /** Bumps each open so ReviewPane remounts a fresh coach run. */
+    generation: number
+  } | null>(null)
   const [lastPublish, setLastPublish] = useState<PublishResult | null>(null)
 
   const dirty =
@@ -59,6 +66,8 @@ export function Editor({ post, onBack, onSaved }: Props) {
     setMode('write')
     setFocusOn(true)
     setPreviewOn(false)
+    setReviewOn(false)
+    setReviewSnapshot(null)
     previewBeforeFocus.current = false
     setTitle(post.title)
     setBody(post.body)
@@ -87,6 +96,7 @@ export function Editor({ post, onBack, onSaved }: Props) {
   const enterFocus = useCallback(() => {
     previewBeforeFocus.current = previewOn
     setPreviewOn(false)
+    setReviewOn(false)
     setFocusOn(true)
   }, [previewOn])
 
@@ -94,7 +104,12 @@ export function Editor({ post, onBack, onSaved }: Props) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Escape') return
-      if (publishOpen || reviewOpen) return
+      if (publishOpen) return
+      if (reviewOn) {
+        e.preventDefault()
+        setReviewOn(false)
+        return
+      }
       if (focusOn) {
         e.preventDefault()
         exitFocus()
@@ -102,7 +117,7 @@ export function Editor({ post, onBack, onSaved }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [focusOn, exitFocus, publishOpen, reviewOpen])
+  }, [focusOn, exitFocus, publishOpen, reviewOn])
 
   function enterSource() {
     if (focusOn) exitFocus()
@@ -244,38 +259,43 @@ export function Editor({ post, onBack, onSaved }: Props) {
   function openReview() {
     if (focusOn) exitFocus()
     // Prefer write-mode title/body; if Source is open, parse raw for the coach.
+    let nextTitle = titleRef.current
+    let nextBody = bodyRef.current
     if (modeRef.current === 'source') {
       try {
         const parsed = parseRaw(rawRef.current)
+        nextTitle = parsed.title
+        nextBody = parsed.body
         setTitle(parsed.title)
         setBody(parsed.body)
       } catch {
-        /* sheet still opens with last known title/body */
+        /* panel still opens with last known title/body */
       }
     }
-    setReviewOpen(true)
+    setPreviewOn(false)
+    setReviewSnapshot((prev) => ({
+      title: nextTitle,
+      body: nextBody,
+      generation: (prev?.generation ?? 0) + 1,
+    }))
+    setReviewOn(true)
   }
 
-  function reviewTitle() {
-    if (mode === 'source') {
-      try {
-        return parseRaw(raw).title
-      } catch {
-        return title
-      }
+  function toggleReview() {
+    if (reviewOn) {
+      setReviewOn(false)
+      return
     }
-    return title
+    openReview()
   }
 
-  function reviewBody() {
-    if (mode === 'source') {
-      try {
-        return parseRaw(raw).body
-      } catch {
-        return body
-      }
+  function togglePreview() {
+    if (previewOn) {
+      setPreviewOn(false)
+      return
     }
-    return body
+    setReviewOn(false)
+    setPreviewOn(true)
   }
 
   useEffect(() => {
@@ -307,9 +327,11 @@ export function Editor({ post, onBack, onSaved }: Props) {
     setSaveError(`Image: ${message}`)
   }, [])
 
+  const sideOn = (previewOn || reviewOn) && !quiet
+
   return (
     <div
-      className={`editor ${previewOn ? 'with-preview' : ''} ${quiet ? 'focus-quiet' : ''}`}
+      className={`editor ${sideOn ? 'with-preview' : ''} ${quiet ? 'focus-quiet' : ''}`}
     >
       {quiet ? (
         <div className="focus-restore" role="toolbar" aria-label="Focus controls">
@@ -358,10 +380,18 @@ export function Editor({ post, onBack, onSaved }: Props) {
             <button
               type="button"
               className={`ghost mode-toggle ${previewOn ? 'active' : ''}`}
-              onClick={() => setPreviewOn((v) => !v)}
+              onClick={togglePreview}
               aria-pressed={previewOn}
             >
               Preview
+            </button>
+            <button
+              type="button"
+              className={`ghost mode-toggle ${reviewOn ? 'active' : ''}`}
+              onClick={toggleReview}
+              aria-pressed={reviewOn}
+            >
+              Review
             </button>
             {mode === 'write' && (
               <button
@@ -408,6 +438,12 @@ export function Editor({ post, onBack, onSaved }: Props) {
                 <span>live preview</span>
               </>
             )}
+            {reviewOn && (
+              <>
+                <span className="sep">·</span>
+                <span>writing review</span>
+              </>
+            )}
           </p>
         </>
       )}
@@ -418,7 +454,7 @@ export function Editor({ post, onBack, onSaved }: Props) {
         </p>
       )}
 
-      <div className={`editor-split ${previewOn && !quiet ? 'split-on' : ''}`}>
+      <div className={`editor-split ${sideOn ? 'split-on' : ''}`}>
         <div className="editor-main">
           {mode === 'write' ? (
             <>
@@ -455,8 +491,19 @@ export function Editor({ post, onBack, onSaved }: Props) {
           )}
         </div>
 
-        {previewOn && !quiet && (
+        {previewOn && !quiet && !reviewOn && (
           <PreviewPane mode={mode} body={body} raw={raw} title={title} />
+        )}
+
+        {reviewOn && !quiet && reviewSnapshot && (
+          <ReviewPane
+            key={reviewSnapshot.generation}
+            filename={baseline.filename}
+            title={reviewSnapshot.title}
+            body={reviewSnapshot.body}
+            onEnsureSaved={ensureSaved}
+            onClose={() => setReviewOn(false)}
+          />
         )}
       </div>
 
@@ -470,16 +517,6 @@ export function Editor({ post, onBack, onSaved }: Props) {
             setLastPublish(res)
             setSaveState('saved')
           }}
-        />
-      )}
-
-      {reviewOpen && (
-        <ReviewSheet
-          filename={baseline.filename}
-          title={reviewTitle()}
-          body={reviewBody()}
-          onEnsureSaved={ensureSaved}
-          onClose={() => setReviewOpen(false)}
         />
       )}
     </div>
