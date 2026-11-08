@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { EditorView, keymap } from '@codemirror/view'
+import { EditorView, highlightActiveLine, keymap } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags as t } from '@lezer/highlight'
@@ -11,6 +11,8 @@ type Props = {
   onChange: (value: string) => void
   /** Writing mode = body only; source = full raw file. */
   mode: 'write' | 'source'
+  /** iA-quiet typewriter emphasis on the active line. */
+  focusMode?: boolean
   placeholder?: string
 }
 
@@ -34,9 +36,9 @@ const editorTheme = EditorView.theme({
   },
   '.cm-content': {
     fontFamily: 'var(--font-body)',
-    lineHeight: '1.65',
+    lineHeight: '1.7',
     caretColor: '#1c1915',
-    maxWidth: '72ch',
+    maxWidth: '68ch',
     paddingBottom: '3rem',
   },
   '&.cm-focused': {
@@ -63,26 +65,55 @@ const sourceTheme = EditorView.theme({
   },
 })
 
-export function MarkdownField({ value, onChange, mode, placeholder }: Props) {
+/** Dim non-active lines while focused — typewriter / iA Writer quiet. */
+const focusTheme = EditorView.theme({
+  '.cm-content': {
+    fontSize: '1.12rem',
+    lineHeight: '1.75',
+    maxWidth: '65ch',
+  },
+  '&.cm-focused .cm-line': {
+    opacity: 0.38,
+    transition: 'opacity 120ms ease',
+  },
+  '&.cm-focused .cm-activeLine': {
+    opacity: 1,
+    backgroundColor: 'transparent',
+  },
+  /* Keep marks on the active line readable */
+  '&.cm-focused .cm-activeLine .cm-decoration': {
+    opacity: 1,
+  },
+})
+
+export function MarkdownField({
+  value,
+  onChange,
+  mode,
+  focusMode = false,
+  placeholder,
+}: Props) {
   const extensions = useMemo(
     () => [
       markdown({ base: markdownLanguage }),
       history(),
       keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
       EditorView.lineWrapping,
+      highlightActiveLine(),
       syntaxHighlighting(inkHighlight),
       editorTheme,
       ...(mode === 'source' ? [sourceTheme] : []),
+      ...(focusMode && mode === 'write' ? [focusTheme] : []),
       EditorView.contentAttributes.of({
         'aria-label': mode === 'source' ? 'Raw source' : 'Post body',
         spellcheck: mode === 'write' ? 'true' : 'false',
       }),
     ],
-    [mode],
+    [mode, focusMode],
   )
 
   return (
-    <div className={`cm-shell mode-${mode}`}>
+    <div className={`cm-shell mode-${mode} ${focusMode ? 'focus-on' : ''}`}>
       <CodeMirror
         value={value}
         height="auto"
