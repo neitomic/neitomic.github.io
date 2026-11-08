@@ -237,6 +237,127 @@ code {
   max-width: min(44rem, 100%);
 }
 
+.publish-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--ink) 35%, transparent);
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  z-index: 40;
+}
+
+.publish-sheet {
+  width: min(40rem, 100%);
+  max-height: min(90vh, 52rem);
+  overflow: auto;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 1.25rem 1.35rem 1.5rem;
+  box-shadow: 0 18px 50px color-mix(in srgb, var(--ink) 18%, transparent);
+}
+
+.publish-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.publish-header h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+}
+
+.publish-lede {
+  margin: 0.75rem 0 1rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.publish-meta {
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.publish-files {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.publish-files .file-code {
+  display: inline-block;
+  min-width: 1.5rem;
+  color: var(--ink);
+}
+
+.publish-message {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+.publish-message input {
+  font: inherit;
+  color: var(--ink);
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--bg) 70%, white);
+}
+
+.publish-diff h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.publish-diff pre,
+.publish-log {
+  margin: 0;
+  max-height: 14rem;
+  overflow: auto;
+  padding: 0.75rem 0.85rem;
+  background: color-mix(in srgb, var(--bg-accent) 70%, white);
+  border-radius: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.publish-result {
+  margin-top: 0.85rem;
+  font-size: 0.95rem;
+}
+
+.publish-result.ok {
+  color: var(--ok);
+}
+
+.publish-result.bad {
+  color: var(--bad);
+}
+
+.publish-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.15rem;
+}
+
 .editor-file {
   margin: 0 0 1rem;
   color: var(--muted);

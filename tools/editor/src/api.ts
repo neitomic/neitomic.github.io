@@ -99,3 +99,64 @@ export async function uploadAsset(file: File): Promise<UploadedAsset> {
   }
   return res.json() as Promise<UploadedAsset>
 }
+
+export type GitFileStatus = { path: string; code: string }
+
+export type GitStatusResponse = {
+  branch: string | null
+  clean: boolean
+  files: GitFileStatus[]
+  publishable: GitFileStatus[]
+  suggested: string[]
+  defaultMessage: string | null
+}
+
+export type PublishResult = {
+  ok: boolean
+  committed: boolean
+  pushed: boolean
+  commitSha: string | null
+  message: string
+  staged: string[]
+  stdout: string
+  stderr: string
+  error?: string
+}
+
+export function fetchGitStatus(postFilename?: string, title?: string) {
+  const params = new URLSearchParams()
+  if (postFilename) params.set('post', postFilename)
+  if (title != null && title !== '') params.set('title', title)
+  const q = params.toString() ? `?${params}` : ''
+  return fetchJson<GitStatusResponse>(`/api/git/status${q}`)
+}
+
+export function fetchGitDiff(paths: string[]) {
+  return fetchJson<{ paths: string[]; patch: string }>('/api/git/diff', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ paths }),
+  })
+}
+
+/** Always returns the publish payload — including failed push (HTTP 409). */
+export async function publishToGitHub(input: {
+  paths: string[]
+  message: string
+  title?: string
+  post?: string
+}): Promise<PublishResult> {
+  const res = await fetch('/api/git/publish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const data = (await res.json()) as PublishResult & { error?: string }
+  if (!res.ok && data.ok === undefined && data.error) {
+    throw new Error(data.error)
+  }
+  if (!res.ok && typeof data.ok !== 'boolean') {
+    throw new Error(data.error || (await parseError(res)))
+  }
+  return data
+}
