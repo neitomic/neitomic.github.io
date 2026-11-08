@@ -25,6 +25,10 @@ export function Editor({ post, onBack, onSaved }: Props) {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const dirty = title !== baseline.title || body !== baseline.body
   const savingRef = useRef(false)
+  const titleRef = useRef(title)
+  const bodyRef = useRef(body)
+  titleRef.current = title
+  bodyRef.current = body
 
   useEffect(() => {
     setTitle(post.title)
@@ -40,29 +44,32 @@ export function Editor({ post, onBack, onSaved }: Props) {
     }
   }, [dirty])
 
-  async function persist(reason: 'manual' | 'auto') {
+  async function persist(_reason: 'manual' | 'auto') {
     if (!dirty || savingRef.current) return
+    const savingTitle = title
+    const savingBody = body
+    const savingFilename = baseline.filename
     savingRef.current = true
     setSaveState('saving')
     setSaveError(null)
     try {
-      const saved = await savePost(baseline.filename, title, body)
+      const saved = await savePost(savingFilename, savingTitle, savingBody)
+      // Disk baseline advances to what we wrote. Keep any newer in-flight keystrokes.
       setBaseline({
+        filename: saved.filename,
         title: saved.title,
         body: saved.body,
-        filename: saved.filename,
       })
-      setTitle(saved.title)
-      setBody(saved.body)
-      setSaveState('saved')
+      if (titleRef.current === savingTitle) setTitle(saved.title)
+      if (bodyRef.current === savingBody) setBody(saved.body)
+      const stillDirty =
+        titleRef.current !== saved.title || bodyRef.current !== saved.body
       setLastSavedAt(new Date())
+      setSaveState(stillDirty ? 'unsaved' : 'saved')
       onSaved(saved)
     } catch (err) {
       setSaveState('error')
       setSaveError(err instanceof Error ? err.message : String(err))
-      if (reason === 'manual') {
-        // keep dirty
-      }
     } finally {
       savingRef.current = false
     }

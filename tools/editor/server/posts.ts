@@ -44,9 +44,10 @@ export function assertSafePostFilename(filename: string): string {
 async function postPath(filename: string): Promise<string> {
   const safe = assertSafePostFilename(filename)
   const root = await resolveRepoRoot()
-  const dir = postsDir(root)
-  const resolved = path.resolve(path.join(dir, safe))
-  if (!resolved.startsWith(path.resolve(dir) + path.sep)) {
+  const dir = path.resolve(postsDir(root))
+  const resolved = path.resolve(dir, safe)
+  const rel = path.relative(dir, resolved)
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
     throw new Error('Path escapes _posts/')
   }
   return resolved
