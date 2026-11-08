@@ -1,7 +1,7 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
-import { readRepoAsset } from './assets.ts'
+import { readRepoAsset, writeImageAsset } from './assets.ts'
 import { getRepoInfo } from './repo.ts'
 import {
   createPost,
@@ -24,7 +24,9 @@ app.onError((err, c) => {
   const status =
     /not found|ENOENT|Not a file/i.test(message)
       ? 404
-      : /already exists|required|must|Invalid|escapes|Only \/assets/i.test(message)
+      : /already exists|required|must|Invalid|escapes|Only \/assets|Unsupported|Empty image|too large|multipart/i.test(
+            message,
+          )
         ? 400
         : 500
   return c.json({ error: message }, status)
@@ -41,6 +43,21 @@ app.get('/api/health', (c) =>
 app.get('/api/repo', async (c) => {
   const info = await getRepoInfo()
   return c.json(info)
+})
+
+app.post('/api/assets', async (c) => {
+  const body = await c.req.parseBody()
+  const file = body['file']
+  if (!(file instanceof File)) {
+    throw new HTTPException(400, { message: 'multipart field "file" is required' })
+  }
+  const bytes = Buffer.from(await file.arrayBuffer())
+  const written = await writeImageAsset({
+    bytes,
+    mime: file.type || 'application/octet-stream',
+    originalName: file.name || 'image',
+  })
+  return c.json(written, 201)
 })
 
 // Preview trust: serve site-root /assets/... from the Jekyll checkout.

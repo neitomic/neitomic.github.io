@@ -198,6 +198,10 @@ export function Editor({ post, onBack, onSaved }: Props) {
 
   const quiet = focusOn && mode === 'write'
 
+  const onImageError = useCallback((message: string) => {
+    setSaveError(`Image: ${message}`)
+  }, [])
+
   return (
     <div
       className={`editor ${previewOn ? 'with-preview' : ''} ${quiet ? 'focus-quiet' : ''}`}
@@ -312,7 +316,8 @@ export function Editor({ post, onBack, onSaved }: Props) {
                   value={body}
                   onChange={setBody}
                   focusMode={quiet}
-                  placeholder="Write in Markdown…"
+                  onImageError={onImageError}
+                  placeholder="Write in Markdown… (drop or paste images)"
                 />
               </div>
             </>
@@ -322,7 +327,8 @@ export function Editor({ post, onBack, onSaved }: Props) {
                 mode="source"
                 value={raw}
                 onChange={setRaw}
-                placeholder="Full Markdown source including frontmatter…"
+                onImageError={onImageError}
+                placeholder="Full Markdown source including frontmatter… (drop or paste images)"
               />
             </div>
           )}

@@ -82,3 +82,20 @@ export function createPost(input: {
     body: JSON.stringify(input),
   })
 }
+
+export type UploadedAsset = {
+  path: string
+  absolutePath: string
+  mime: string
+  bytes: number
+}
+
+export async function uploadAsset(file: File): Promise<UploadedAsset> {
+  const fd = new FormData()
+  fd.append('file', file)
+  const res = await fetch('/api/assets', { method: 'POST', body: fd })
+  if (!res.ok) {
+    throw new Error(await parseError(res))
+  }
+  return res.json() as Promise<UploadedAsset>
+}

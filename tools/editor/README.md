@@ -2,7 +2,7 @@
 
 Local-only writing app for this Jekyll site. It runs on your machine against the real git checkout — **no cloud, no accounts, no tokens in the app**.
 
-Current milestones in-tree: **M0–M4** (repo bind, library/save, CodeMirror 6, live preview, focus/typewriter chrome). Later: `/assets/...` image drop-to-disk, git commit/push UI.
+Current milestones in-tree: **M0–M5** (through image drop → `/assets/...`). Later: git commit/push UI (M6).
 
 ## Requirements
 
@@ -29,7 +29,7 @@ Both bind **`127.0.0.1` only**.
 
 Open the UI: library of `_posts/`, open a post. Default writing state is **Focus** (iA-quiet): chrome collapses, active line is emphasized, calm measure (~65ch). **Esc** or **Exit focus** restores library / metadata chrome in one action. **Preview** (after exiting focus) shows a live markdown-it side pane. **Source** toggles the full raw file including frontmatter. Save / autosave stay lossless. **New post** scaffolds `YYYY-MM-DD-slug.md` with `layout`, `title`, `date` (+0700), `tags`.
 
-`/assets/...` in preview is served from this checkout (proxied via the local API).
+**Images:** drop or paste PNG/JPEG (also GIF/WebP) into the editor → copied to `assets/images/YYYY/` → inserts `![](/assets/images/YYYY/…)`. Preview serves `/assets/...` from this checkout via the local API.
 
 ## Tests
 
@@ -57,10 +57,7 @@ Optional API port: `EDITOR_API_PORT=8787`.
 - `GET /api/posts/:filename` — open one post (title, body, frontmatter, raw)
 - `PUT /api/posts/:filename` — save `{ title, body }` (stable frontmatter; no-edit saves keep exact bytes) or `{ raw }` for Source mode
 - `POST /api/posts` — create `{ title, slug?, datePrefix? }`
-
-## Image paths (later)
-
-Site-root `/assets/...` (not wired yet).
+- `POST /api/assets` — multipart `file` → write under `assets/images/YYYY/`, returns `{ path: "/assets/..." }`
 
 ## Jekyll
 
