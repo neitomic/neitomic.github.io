@@ -7,6 +7,7 @@ import {
   listPosts,
   readPost,
   writePost,
+  writeRawPost,
 } from './posts.ts'
 
 const HOST = '127.0.0.1'
@@ -62,9 +63,15 @@ app.get('/api/posts/:filename', async (c) => {
 
 app.put('/api/posts/:filename', async (c) => {
   const filename = c.req.param('filename')
-  const body = await c.req.json<{ title?: string; body?: string }>()
+  const body = await c.req.json<{ title?: string; body?: string; raw?: string }>()
+  if (typeof body.raw === 'string') {
+    const post = await writeRawPost(filename, body.raw)
+    return c.json(post)
+  }
   if (typeof body.title !== 'string' || typeof body.body !== 'string') {
-    throw new HTTPException(400, { message: 'title and body strings are required' })
+    throw new HTTPException(400, {
+      message: 'Provide { title, body } or { raw }',
+    })
   }
   const post = await writePost(filename, body.title, body.body)
   return c.json(post)
