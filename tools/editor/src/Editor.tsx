@@ -45,6 +45,8 @@ export function Editor({ post, onBack, onSaved }: Props) {
   rawRef.current = raw
   modeRef.current = mode
 
+  // Only reset editor chrome when opening a different file. Parent onSaved
+  // refreshes `post` after every save — must not kick Source mode back to Write.
   useEffect(() => {
     setMode('write')
     setTitle(post.title)
@@ -58,7 +60,7 @@ export function Editor({ post, onBack, onSaved }: Props) {
     })
     setSaveState('saved')
     setSaveError(null)
-  }, [post.filename, post.title, post.body, post.raw])
+  }, [post.filename])
 
   useEffect(() => {
     if (dirty) {
