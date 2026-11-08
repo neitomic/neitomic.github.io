@@ -2,7 +2,7 @@
 
 Local-only writing app for this Jekyll site. It runs on your machine against the real git checkout — **no cloud, no accounts, no tokens in the app**.
 
-Current milestones in-tree: **M0** (repo bind) + **M1** (post library, open/save, new-post scaffold). Later: CodeMirror polish, preview, focus, `/assets/...` image drop, git commit/push UI.
+Current milestones in-tree: **M0** (repo bind) + **M1** (library/open/save) + **M2** (CodeMirror 6 writing surface + Source mode). Later: preview, focus, `/assets/...` image drop, git commit/push UI.
 
 ## Requirements
 
@@ -27,7 +27,7 @@ That starts:
 
 Both bind **`127.0.0.1` only**.
 
-Open the UI: library of `_posts/`, open a post, edit title/body, Save (autosave while dirty). **New post** scaffolds `YYYY-MM-DD-slug.md` with `layout`, `title`, `date` (+0700), `tags`.
+Open the UI: library of `_posts/`, open a post, edit title + Markdown body in CodeMirror 6 (soft wrap, ~72ch measure). **Source** toggles the full raw file including frontmatter. Save / autosave stay lossless. **New post** scaffolds `YYYY-MM-DD-slug.md` with `layout`, `title`, `date` (+0700), `tags`.
 
 ## Tests
 
@@ -53,12 +53,12 @@ Optional API port: `EDITOR_API_PORT=8787`.
 - `GET /api/repo` — `{ repoRoot, branch, postsExists, gitOk, error? }`
 - `GET /api/posts` — list posts
 - `GET /api/posts/:filename` — open one post (title, body, frontmatter, raw)
-- `PUT /api/posts/:filename` — save `{ title, body }` (stable frontmatter; no-edit saves keep exact bytes)
+- `PUT /api/posts/:filename` — save `{ title, body }` (stable frontmatter; no-edit saves keep exact bytes) or `{ raw }` for Source mode
 - `POST /api/posts` — create `{ title, slug?, datePrefix? }`
 
 ## Image paths (later)
 
-Site-root `/assets/...` (not wired in M1).
+Site-root `/assets/...` (not wired yet).
 
 ## Jekyll
 

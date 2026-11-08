@@ -183,6 +183,16 @@ export async function writePost(
   return parsePost(path.basename(full), next)
 }
 
+/** Source-mode escape hatch: write the exact raw buffer. */
+export async function writeRawPost(
+  filename: string,
+  raw: string,
+): Promise<PostDocument> {
+  const full = await postPath(filename)
+  await fs.writeFile(full, raw, 'utf8')
+  return parsePost(path.basename(full), raw)
+}
+
 /** Wall-clock parts in Asia/Ho_Chi_Minh (+0700). */
 export function nowInIct(d = new Date()): {
   yyyy: string

@@ -63,6 +63,14 @@ export function savePost(filename: string, title: string, body: string) {
   })
 }
 
+export function saveRawPost(filename: string, raw: string) {
+  return fetchJson<PostDocument>(`/api/posts/${encodeURIComponent(filename)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ raw }),
+  })
+}
+
 export function createPost(input: {
   title: string
   slug?: string
