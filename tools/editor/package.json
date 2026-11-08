@@ -8,11 +8,13 @@
     "dev:api": "tsx watch server/index.ts",
     "dev:ui": "vite",
     "build": "tsc -b && vite build",
+    "test": "vitest run",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.6",
+    "gray-matter": "^4.0.3",
     "hono": "^4.11.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
@@ -26,6 +28,7 @@
     "oxlint": "^1.90.0",
     "tsx": "^4.21.0",
     "typescript": "~7.0.2",
-    "vite": "^8.3.6"
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
   }
 }
