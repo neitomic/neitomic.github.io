@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PostDocument } from './api'
 import { savePost, saveRawPost } from './api'
 import { MarkdownField } from './MarkdownField'
@@ -18,7 +18,8 @@ const AUTOSAVE_MS = 900
 
 export function Editor({ post, onBack, onSaved }: Props) {
   const [mode, setMode] = useState<EditorMode>('write')
-  const [previewOn, setPreviewOn] = useState(true)
+  const [previewOn, setPreviewOn] = useState(false)
+  const [focusOn, setFocusOn] = useState(true)
   const [title, setTitle] = useState(post.title)
   const [body, setBody] = useState(post.body)
   const [raw, setRaw] = useState(post.raw)
@@ -42,16 +43,18 @@ export function Editor({ post, onBack, onSaved }: Props) {
   const bodyRef = useRef(body)
   const rawRef = useRef(raw)
   const modeRef = useRef(mode)
+  const previewBeforeFocus = useRef(false)
   titleRef.current = title
   bodyRef.current = body
   rawRef.current = raw
   modeRef.current = mode
 
-  // Only reset editor chrome when opening a different file. Parent onSaved
-  // refreshes `post` after every save — must not kick Source mode back to Write.
+  // Only reset editor chrome when opening a different file.
   useEffect(() => {
     setMode('write')
-    setPreviewOn(true)
+    setFocusOn(true)
+    setPreviewOn(false)
+    previewBeforeFocus.current = false
     setTitle(post.title)
     setBody(post.body)
     setRaw(post.raw)
@@ -71,7 +74,32 @@ export function Editor({ post, onBack, onSaved }: Props) {
     }
   }, [dirty])
 
+  const exitFocus = useCallback(() => {
+    setFocusOn(false)
+    setPreviewOn(previewBeforeFocus.current)
+  }, [])
+
+  const enterFocus = useCallback(() => {
+    previewBeforeFocus.current = previewOn
+    setPreviewOn(false)
+    setFocusOn(true)
+  }, [previewOn])
+
+  // Escape restores chrome (library / metadata affordances) in one action.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      if (focusOn) {
+        e.preventDefault()
+        exitFocus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [focusOn, exitFocus])
+
   function enterSource() {
+    if (focusOn) exitFocus()
     const nextRaw = rebuildRaw({
       originalRaw: baseline.raw,
       originalTitle: baseline.title,
@@ -90,6 +118,8 @@ export function Editor({ post, onBack, onSaved }: Props) {
       setBody(parsed.body)
       setMode('write')
       setSaveError(null)
+      setFocusOn(true)
+      setPreviewOn(false)
     } catch (err) {
       setSaveError(
         err instanceof Error
@@ -166,57 +196,96 @@ export function Editor({ post, onBack, onSaved }: Props) {
             ? `Saved ${lastSavedAt.toLocaleTimeString()}`
             : 'Saved'
 
-  return (
-    <div className={`editor ${previewOn ? 'with-preview' : ''}`}>
-      <div className="editor-bar">
-        <button type="button" className="ghost" onClick={onBack}>
-          ← Library
-        </button>
-        <button
-          type="button"
-          className={`ghost mode-toggle ${mode === 'source' ? 'active' : ''}`}
-          onClick={() => (mode === 'source' ? enterWrite() : enterSource())}
-        >
-          {mode === 'source' ? 'Write' : 'Source'}
-        </button>
-        <button
-          type="button"
-          className={`ghost mode-toggle ${previewOn ? 'active' : ''}`}
-          onClick={() => setPreviewOn((v) => !v)}
-          aria-pressed={previewOn}
-        >
-          Preview
-        </button>
-        <p className={`save-pill ${saveState}`} aria-live="polite">
-          {statusLabel}
-        </p>
-        <button
-          type="button"
-          className="primary"
-          disabled={!dirty || saveState === 'saving'}
-          onClick={() => void persist('manual')}
-        >
-          Save
-        </button>
-      </div>
+  const quiet = focusOn && mode === 'write'
 
-      <p className="editor-file">
-        <code>{post.filename}</code>
-        {post.date && (
-          <>
+  return (
+    <div
+      className={`editor ${previewOn ? 'with-preview' : ''} ${quiet ? 'focus-quiet' : ''}`}
+    >
+      {quiet ? (
+        <div className="focus-restore" role="toolbar" aria-label="Focus controls">
+          <button type="button" className="ghost" onClick={onBack}>
+            ← Library
+          </button>
+          <button type="button" className="ghost" onClick={exitFocus}>
+            Exit focus
+          </button>
+          <span className="focus-hint">Esc shows chrome</span>
+          <p className={`save-pill ${saveState}`} aria-live="polite">
+            {statusLabel}
+          </p>
+          <button
+            type="button"
+            className="primary"
+            disabled={!dirty || saveState === 'saving'}
+            onClick={() => void persist('manual')}
+          >
+            Save
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="editor-bar">
+            <button type="button" className="ghost" onClick={onBack}>
+              ← Library
+            </button>
+            <button
+              type="button"
+              className={`ghost mode-toggle ${mode === 'source' ? 'active' : ''}`}
+              onClick={() => (mode === 'source' ? enterWrite() : enterSource())}
+            >
+              {mode === 'source' ? 'Write' : 'Source'}
+            </button>
+            <button
+              type="button"
+              className={`ghost mode-toggle ${previewOn ? 'active' : ''}`}
+              onClick={() => setPreviewOn((v) => !v)}
+              aria-pressed={previewOn}
+            >
+              Preview
+            </button>
+            {mode === 'write' && (
+              <button
+                type="button"
+                className={`ghost mode-toggle ${focusOn ? 'active' : ''}`}
+                onClick={() => (focusOn ? exitFocus() : enterFocus())}
+                aria-pressed={focusOn}
+              >
+                Focus
+              </button>
+            )}
+            <p className={`save-pill ${saveState}`} aria-live="polite">
+              {statusLabel}
+            </p>
+            <button
+              type="button"
+              className="primary"
+              disabled={!dirty || saveState === 'saving'}
+              onClick={() => void persist('manual')}
+            >
+              Save
+            </button>
+          </div>
+
+          <p className="editor-file">
+            <code>{post.filename}</code>
+            {post.date && (
+              <>
+                <span className="sep">·</span>
+                <span>{post.date}</span>
+              </>
+            )}
             <span className="sep">·</span>
-            <span>{post.date}</span>
-          </>
-        )}
-        <span className="sep">·</span>
-        <span>{mode === 'source' ? 'raw source' : 'title + body'}</span>
-        {previewOn && (
-          <>
-            <span className="sep">·</span>
-            <span>live preview</span>
-          </>
-        )}
-      </p>
+            <span>{mode === 'source' ? 'raw source' : 'title + body'}</span>
+            {previewOn && (
+              <>
+                <span className="sep">·</span>
+                <span>live preview</span>
+              </>
+            )}
+          </p>
+        </>
+      )}
 
       {saveError && (
         <p className="hint error-text" role="alert">
@@ -224,11 +293,11 @@ export function Editor({ post, onBack, onSaved }: Props) {
         </p>
       )}
 
-      <div className={`editor-split ${previewOn ? 'split-on' : ''}`}>
+      <div className={`editor-split ${previewOn && !quiet ? 'split-on' : ''}`}>
         <div className="editor-main">
           {mode === 'write' ? (
             <>
-              <label className="title-field">
+              <label className={`title-field ${quiet ? 'title-quiet' : ''}`}>
                 <span className="sr-only">Title</span>
                 <input
                   value={title}
@@ -242,6 +311,7 @@ export function Editor({ post, onBack, onSaved }: Props) {
                   mode="write"
                   value={body}
                   onChange={setBody}
+                  focusMode={quiet}
                   placeholder="Write in Markdown…"
                 />
               </div>
@@ -258,7 +328,7 @@ export function Editor({ post, onBack, onSaved }: Props) {
           )}
         </div>
 
-        {previewOn && (
+        {previewOn && !quiet && (
           <PreviewPane mode={mode} body={body} raw={raw} title={title} />
         )}
       </div>
