@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { PostDocument } from './api'
+import type { PostDocument, PublishResult } from './api'
 import { savePost, saveRawPost } from './api'
 import { MarkdownField } from './MarkdownField'
 import { PreviewPane } from './PreviewPane'
+import { PublishSheet } from './PublishSheet'
 import { parseRaw, rebuildRaw } from './rawBuffer'
 
 type Props = {
@@ -32,6 +33,8 @@ export function Editor({ post, onBack, onSaved }: Props) {
   const [saveState, setSaveState] = useState<SaveState>('saved')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
+  const [publishOpen, setPublishOpen] = useState(false)
+  const [lastPublish, setLastPublish] = useState<PublishResult | null>(null)
 
   const dirty =
     mode === 'source'
@@ -89,6 +92,7 @@ export function Editor({ post, onBack, onSaved }: Props) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Escape') return
+      if (publishOpen) return
       if (focusOn) {
         e.preventDefault()
         exitFocus()
@@ -96,7 +100,7 @@ export function Editor({ post, onBack, onSaved }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [focusOn, exitFocus])
+  }, [focusOn, exitFocus, publishOpen])
 
   function enterSource() {
     if (focusOn) exitFocus()
@@ -172,15 +176,75 @@ export function Editor({ post, onBack, onSaved }: Props) {
     } catch (err) {
       setSaveState('error')
       setSaveError(err instanceof Error ? err.message : String(err))
+      throw err
     } finally {
       savingRef.current = false
     }
   }
 
+  const ensureSaved = useCallback(async () => {
+    if (titleRef.current !== baseline.title || bodyRef.current !== baseline.body) {
+      if (modeRef.current === 'write') {
+        savingRef.current = true
+        setSaveState('saving')
+        try {
+          const saved = await savePost(
+            baseline.filename,
+            titleRef.current,
+            bodyRef.current,
+          )
+          setBaseline({
+            filename: saved.filename,
+            title: saved.title,
+            body: saved.body,
+            raw: saved.raw,
+          })
+          setTitle(saved.title)
+          setBody(saved.body)
+          setRaw(saved.raw)
+          setSaveState('saved')
+          setLastSavedAt(new Date())
+          onSaved(saved)
+        } finally {
+          savingRef.current = false
+        }
+        return
+      }
+    }
+    if (modeRef.current === 'source' && rawRef.current !== baseline.raw) {
+      savingRef.current = true
+      setSaveState('saving')
+      try {
+        const saved = await saveRawPost(baseline.filename, rawRef.current)
+        setBaseline({
+          filename: saved.filename,
+          title: saved.title,
+          body: saved.body,
+          raw: saved.raw,
+        })
+        setTitle(saved.title)
+        setBody(saved.body)
+        setRaw(saved.raw)
+        setSaveState('saved')
+        setLastSavedAt(new Date())
+        onSaved(saved)
+      } finally {
+        savingRef.current = false
+      }
+    }
+  }, [baseline.title, baseline.body, baseline.raw, baseline.filename, onSaved])
+
+  function openPublish() {
+    if (focusOn) exitFocus()
+    setPublishOpen(true)
+  }
+
   useEffect(() => {
     if (!dirty) return
     const handle = window.setTimeout(() => {
-      void persist('auto')
+      void persist('auto').catch(() => {
+        /* error already reflected in saveState */
+      })
     }, AUTOSAVE_MS)
     return () => window.clearTimeout(handle)
   }, [title, body, raw, mode, dirty, baseline.filename])
@@ -192,9 +256,11 @@ export function Editor({ post, onBack, onSaved }: Props) {
         ? 'Save failed'
         : dirty || saveState === 'unsaved'
           ? 'Unsaved'
-          : lastSavedAt
-            ? `Saved ${lastSavedAt.toLocaleTimeString()}`
-            : 'Saved'
+          : lastPublish?.ok
+            ? 'Pushed'
+            : lastSavedAt
+              ? `Saved ${lastSavedAt.toLocaleTimeString()}`
+              : 'Saved'
 
   const quiet = focusOn && mode === 'write'
 
@@ -218,6 +284,13 @@ export function Editor({ post, onBack, onSaved }: Props) {
           <p className={`save-pill ${saveState}`} aria-live="polite">
             {statusLabel}
           </p>
+          <button
+            type="button"
+            className="ghost"
+            onClick={openPublish}
+          >
+            Publish…
+          </button>
           <button
             type="button"
             className="primary"
@@ -258,6 +331,9 @@ export function Editor({ post, onBack, onSaved }: Props) {
                 Focus
               </button>
             )}
+            <button type="button" className="ghost" onClick={openPublish}>
+              Publish…
+            </button>
             <p className={`save-pill ${saveState}`} aria-live="polite">
               {statusLabel}
             </p>
@@ -338,6 +414,19 @@ export function Editor({ post, onBack, onSaved }: Props) {
           <PreviewPane mode={mode} body={body} raw={raw} title={title} />
         )}
       </div>
+
+      {publishOpen && (
+        <PublishSheet
+          postFilename={baseline.filename}
+          title={title}
+          onEnsureSaved={ensureSaved}
+          onClose={() => setPublishOpen(false)}
+          onPublished={(res) => {
+            setLastPublish(res)
+            setSaveState('saved')
+          }}
+        />
+      )}
     </div>
   )
 }

@@ -2,6 +2,13 @@ import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { readRepoAsset, writeImageAsset } from './assets.ts'
+import {
+  defaultCommitMessage,
+  getGitDiff,
+  getGitStatus,
+  publishPaths,
+  suggestPublishPaths,
+} from './git.ts'
 import { getRepoInfo } from './repo.ts'
 import {
   createPost,
@@ -24,7 +31,7 @@ app.onError((err, c) => {
   const status =
     /not found|ENOENT|Not a file/i.test(message)
       ? 404
-      : /already exists|required|must|Invalid|escapes|Only \/assets|Unsupported|Empty image|too large|multipart/i.test(
+      : /already exists|required|must|Invalid|escapes|Only \/assets|Unsupported|Empty image|too large|multipart|No paths|Commit message|Only _posts/i.test(
             message,
           )
         ? 400
@@ -133,6 +140,49 @@ app.post('/api/posts', async (c) => {
     tags: body.tags,
   })
   return c.json(post, 201)
+})
+
+app.get('/api/git/status', async (c) => {
+  const status = await getGitStatus()
+  const post = c.req.query('post')
+  const title = c.req.query('title') ?? ''
+  const suggested = post
+    ? suggestPublishPaths(post, status)
+    : status.publishable.map((f) => f.path)
+  const defaultMessage =
+    post != null && post !== ''
+      ? defaultCommitMessage(title, `_posts/${post}`, status)
+      : null
+  return c.json({ ...status, suggested, defaultMessage })
+})
+
+app.post('/api/git/diff', async (c) => {
+  const body = await c.req.json<{ paths?: string[] }>()
+  if (!Array.isArray(body.paths)) {
+    throw new HTTPException(400, { message: 'paths array is required' })
+  }
+  const diff = await getGitDiff(body.paths)
+  return c.json(diff)
+})
+
+app.post('/api/git/publish', async (c) => {
+  const body = await c.req.json<{
+    paths?: string[]
+    message?: string
+    title?: string
+    post?: string
+  }>()
+  if (!Array.isArray(body.paths) || typeof body.message !== 'string') {
+    throw new HTTPException(400, { message: 'paths and message are required' })
+  }
+  // Allow empty message only if we can default from title/post
+  let message = body.message.trim()
+  if (!message && body.post && body.title) {
+    const status = await getGitStatus()
+    message = defaultCommitMessage(body.title, `_posts/${body.post}`, status)
+  }
+  const result = await publishPaths({ paths: body.paths, message })
+  return c.json(result, result.ok ? 200 : 409)
 })
 
 console.log(`[editor-api] listening on http://${HOST}:${PORT} (local only)`)

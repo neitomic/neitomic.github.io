@@ -2,7 +2,7 @@
 
 Local-only writing app for this Jekyll site. It runs on your machine against the real git checkout — **no cloud, no accounts, no tokens in the app**.
 
-Current milestones in-tree: **M0–M5** (through image drop → `/assets/...`). Later: git commit/push UI (M6).
+Current milestones in-tree: **M0–M6** (v1 complete on the `editor-v1` integration branch).
 
 ## Requirements
 
@@ -31,6 +31,8 @@ Open the UI: library of `_posts/`, open a post. Default writing state is **Focus
 
 **Images:** drop or paste PNG/JPEG (also GIF/WebP) into the editor → copied to `assets/images/YYYY/` → inserts `![](/assets/images/YYYY/…)`. Preview serves `/assets/...` from this checkout via the local API.
 
+**Publish:** **Publish…** opens a sheet with git status, diff peek, commit message (default `Add/Update post: {title}`), and **Commit & push to GitHub Pages**. Uses system `git` on your machine (SSH/credential helper) — no tokens in the app. If push fails after commit, the UI says so and never claims published.
+
 ## Tests
 
 ```bash
@@ -58,6 +60,9 @@ Optional API port: `EDITOR_API_PORT=8787`.
 - `PUT /api/posts/:filename` — save `{ title, body }` (stable frontmatter; no-edit saves keep exact bytes) or `{ raw }` for Source mode
 - `POST /api/posts` — create `{ title, slug?, datePrefix? }`
 - `POST /api/assets` — multipart `file` → write under `assets/images/YYYY/`, returns `{ path: "/assets/..." }`
+- `GET /api/git/status?post=` — porcelain status + suggested `_posts`/`assets` paths
+- `POST /api/git/diff` — `{ paths }` → unified diff peek
+- `POST /api/git/publish` — `{ paths, message }` → stage/commit/push via system `git`
 
 ## Jekyll
 
