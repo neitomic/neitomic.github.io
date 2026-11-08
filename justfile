@@ -50,7 +50,8 @@ editor-clean:
 
 # Fill the shared writing-coach prompt for a post (stdout).
 # Example: just review-post _posts/2026-11-08-my-personal-gist-inbox.md
-# Optional LLM: just review-post _posts/... -- --run   (needs EDITOR_REVIEW_API_KEY)
+# Optional run: just review-post _posts/... -- --run
+# Prefers local claude/codex/grok CLI, else EDITOR_REVIEW_API_KEY / OPENAI_API_KEY.
 [doc('Print filled writing-coach prompt for a post path (optional -- --run)')]
 review-post path *args:
     #!/usr/bin/env bash

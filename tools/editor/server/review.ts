@@ -1,9 +1,22 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  detectReviewClis,
+  getReviewCliPreference,
+  parseCoachReview,
+  runCoachCli,
+  type CoachSection,
+  type DetectedCli,
+  type ReviewCliId,
+} from './reviewCli.ts'
+import { resolveRepoRoot } from './repo.ts'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 export const PROMPT_PATH = path.resolve(HERE, '../prompts/writing-coach.md')
+
+export { parseCoachReview }
+export type { CoachSection, ReviewCliId }
 
 /** Server-side only — never expose the raw key to the UI. */
 export type ReviewLlmConfig = {
@@ -33,14 +46,36 @@ export function getReviewLlmConfig(): ReviewLlmConfig {
   }
 }
 
-export function publicReviewConfig() {
+export type PublicReviewConfig = {
+  llmConfigured: boolean
+  model: string | null
+  baseUrl: string | null
+  envHint: string
+  cliPreference: string
+  cliConfigured: boolean
+  cliId: ReviewCliId | null
+  cliBinary: string | null
+  cliAvailable: Array<{ id: ReviewCliId; binary: string }>
+}
+
+export async function publicReviewConfig(): Promise<PublicReviewConfig> {
   const cfg = getReviewLlmConfig()
+  const cli = await detectReviewClis()
+  const preference = getReviewCliPreference()
   return {
     llmConfigured: cfg.configured,
     model: cfg.configured ? cfg.model : null,
     baseUrl: cfg.configured ? cfg.baseUrl : null,
+    cliPreference: preference,
+    cliConfigured: Boolean(cli.selected),
+    cliId: cli.selected?.id ?? null,
+    cliBinary: cli.selected?.binary ?? null,
+    cliAvailable: cli.available.map((c) => ({
+      id: c.id,
+      binary: c.binary,
+    })),
     envHint:
-      'Set EDITOR_REVIEW_API_KEY (or OPENAI_API_KEY) in the shell that runs `just editor`. Optional: EDITOR_REVIEW_API_BASE, EDITOR_REVIEW_MODEL.',
+      'Prefers a local CLI (claude / codex / grok). Set EDITOR_REVIEW_CLI=auto|claude|codex|grok|off and optional EDITOR_REVIEW_CLI_PATH. Fallback: EDITOR_REVIEW_API_KEY (or OPENAI_API_KEY); optional EDITOR_REVIEW_API_BASE, EDITOR_REVIEW_MODEL. Or copy the shared prompt into Cursor.',
   }
 }
 
@@ -118,4 +153,123 @@ export async function runCoachLlm(
     throw new Error('Review API returned an empty response')
   }
   return content
+}
+
+export type CoachRunMode = 'cli' | 'llm' | 'prompt-only'
+
+export type CoachRunResult = {
+  mode: CoachRunMode
+  review: string | null
+  sections: CoachSection[]
+  error?: string
+  cliId?: ReviewCliId | null
+  cliBinary?: string | null
+}
+
+/**
+ * Prefer local Claude / Codex / Grok CLI; fall back to OpenAI-compatible HTTP;
+ * otherwise prompt-only (caller shows copy-prompt UX).
+ */
+export async function runCoachReview(
+  filledPrompt: string,
+  options: { prefer?: 'auto' | 'cli' | 'llm' } = {},
+): Promise<CoachRunResult> {
+  const prefer = options.prefer ?? 'auto'
+  const cliCfg = await detectReviewClis()
+  const llmCfg = getReviewLlmConfig()
+
+  const tryCli = prefer === 'cli' || prefer === 'auto'
+  const tryLlm = prefer === 'llm' || prefer === 'auto'
+
+  if (tryCli && cliCfg.selected) {
+    try {
+      const ran = await runCoachCli(filledPrompt, cliCfg.selected, {
+        cwd: await resolveRepoRoot(),
+      })
+      return {
+        mode: 'cli',
+        review: ran.review,
+        sections: parseCoachReview(ran.review),
+        cliId: ran.cli,
+        cliBinary: ran.binary,
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      // If LLM is available, fall through; otherwise surface the CLI error.
+      if (!(tryLlm && llmCfg.configured)) {
+        return {
+          mode: 'prompt-only',
+          review: null,
+          sections: [],
+          error: message,
+          cliId: cliCfg.selected.id,
+          cliBinary: cliCfg.selected.binary,
+        }
+      }
+      // Keep CLI failure note while attempting LLM.
+      try {
+        const review = await runCoachLlm(filledPrompt, llmCfg)
+        return {
+          mode: 'llm',
+          review,
+          sections: parseCoachReview(review),
+          error: `CLI (${cliCfg.selected.id}) failed; used API key instead. ${message}`,
+          cliId: cliCfg.selected.id,
+          cliBinary: cliCfg.selected.binary,
+        }
+      } catch (llmErr) {
+        const llmMessage =
+          llmErr instanceof Error ? llmErr.message : String(llmErr)
+        return {
+          mode: 'prompt-only',
+          review: null,
+          sections: [],
+          error: `${message} · LLM fallback also failed: ${llmMessage}`,
+          cliId: cliCfg.selected.id,
+          cliBinary: cliCfg.selected.binary,
+        }
+      }
+    }
+  }
+
+  if (tryLlm && llmCfg.configured) {
+    try {
+      const review = await runCoachLlm(filledPrompt, llmCfg)
+      return {
+        mode: 'llm',
+        review,
+        sections: parseCoachReview(review),
+        cliId: cliCfg.selected?.id ?? null,
+        cliBinary: cliCfg.selected?.binary ?? null,
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return {
+        mode: 'prompt-only',
+        review: null,
+        sections: [],
+        error: message,
+        cliId: cliCfg.selected?.id ?? null,
+        cliBinary: cliCfg.selected?.binary ?? null,
+      }
+    }
+  }
+
+  return {
+    mode: 'prompt-only',
+    review: null,
+    sections: [],
+    error:
+      prefer === 'cli'
+        ? 'No Claude / Codex / Grok CLI found. Install one, set EDITOR_REVIEW_CLI_PATH, or copy the prompt.'
+        : 'No local CLI (claude / codex / grok) and no EDITOR_REVIEW_API_KEY / OPENAI_API_KEY — copy the prompt into Cursor/an agent, or install a CLI / set a key and retry.',
+    cliId: null,
+    cliBinary: null,
+  }
+}
+
+/** Test helper: expose detect for unit tests without re-export churn. */
+export async function resolveSelectedCli(): Promise<DetectedCli | null> {
+  const cfg = await detectReviewClis()
+  return cfg.selected
 }

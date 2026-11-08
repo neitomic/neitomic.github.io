@@ -20,7 +20,7 @@ import {
 import {
   buildFilledPrompt,
   publicReviewConfig,
-  runCoachLlm,
+  runCoachReview,
 } from './review.ts'
 
 const HOST = '127.0.0.1'
@@ -190,8 +190,8 @@ app.post('/api/git/publish', async (c) => {
   return c.json(result, result.ok ? 200 : 409)
 })
 
-/** Writing coach — shared prompt + optional OpenAI-compatible LLM (opt-in via env). */
-app.get('/api/review/config', (c) => c.json(publicReviewConfig()))
+/** Writing coach — local CLI preferred; optional HTTP LLM; else copy-prompt. */
+app.get('/api/review/config', async (c) => c.json(await publicReviewConfig()))
 
 app.post('/api/review', async (c) => {
   const body = await c.req.json<{
@@ -200,6 +200,7 @@ app.post('/api/review', async (c) => {
     title?: string
     body?: string
     run?: boolean
+    prefer?: 'auto' | 'cli' | 'llm'
   }>()
   const title = typeof body.title === 'string' ? body.title : ''
   const postBody = typeof body.body === 'string' ? body.body : ''
@@ -224,53 +225,36 @@ app.post('/api/review', async (c) => {
     title,
     body: postBody,
   })
-  const cfg = publicReviewConfig()
+  const cfg = await publicReviewConfig()
   const wantRun = body.run === true
+  const prefer =
+    body.prefer === 'cli' || body.prefer === 'llm' || body.prefer === 'auto'
+      ? body.prefer
+      : 'auto'
 
   if (!wantRun) {
     return c.json({
       mode: 'prompt-only' as const,
       prompt,
       review: null,
+      sections: [],
       ...cfg,
     })
   }
 
-  if (!cfg.llmConfigured) {
-    return c.json(
-      {
-        mode: 'prompt-only' as const,
-        prompt,
-        review: null,
-        error:
-          'No EDITOR_REVIEW_API_KEY / OPENAI_API_KEY — copy the prompt into Cursor/an agent, or set a key and retry.',
-        ...cfg,
-      },
-      200,
-    )
-  }
-
-  try {
-    const review = await runCoachLlm(prompt)
-    return c.json({
-      mode: 'llm' as const,
-      prompt,
-      review,
-      ...cfg,
-    })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    return c.json(
-      {
-        mode: 'prompt-only' as const,
-        prompt,
-        review: null,
-        error: message,
-        ...cfg,
-      },
-      200,
-    )
-  }
+  const ran = await runCoachReview(prompt, { prefer })
+  return c.json({
+    mode: ran.mode,
+    prompt,
+    review: ran.review,
+    sections: ran.sections,
+    error: ran.error,
+    ...cfg,
+    // Reflect the CLI that actually ran when present
+    cliId: ran.cliId ?? cfg.cliId,
+    cliBinary: ran.cliBinary ?? cfg.cliBinary,
+    cliConfigured: Boolean(ran.cliId ?? cfg.cliId),
+  })
 })
 
 console.log(`[editor-api] listening on http://${HOST}:${PORT} (local only)`)
