@@ -2,7 +2,7 @@
 
 Local-only writing app for this Jekyll site. It runs on your machine against the real git checkout — **no cloud, no accounts, no tokens in the app**.
 
-Current milestones in-tree: **M0** (repo bind) + **M1** (library/open/save) + **M2** (CodeMirror 6 writing surface + Source mode). Later: preview, focus, `/assets/...` image drop, git commit/push UI.
+Current milestones in-tree: **M0–M3** (repo bind, library/save, CodeMirror 6, live markdown-it preview). Later: focus, `/assets/...` image drop-to-disk, git commit/push UI.
 
 ## Requirements
 
@@ -27,7 +27,9 @@ That starts:
 
 Both bind **`127.0.0.1` only**.
 
-Open the UI: library of `_posts/`, open a post, edit title + Markdown body in CodeMirror 6 (soft wrap, ~72ch measure). **Source** toggles the full raw file including frontmatter. Save / autosave stay lossless. **New post** scaffolds `YYYY-MM-DD-slug.md` with `layout`, `title`, `date` (+0700), `tags`.
+Open the UI: library of `_posts/`, open a post, edit title + Markdown body in CodeMirror 6 (soft wrap, ~72ch measure). **Preview** shows a live markdown-it (GFM-ish) side pane — trustable for ordinary prose/code/images, not full kramdown. **Source** toggles the full raw file including frontmatter. Save / autosave stay lossless. **New post** scaffolds `YYYY-MM-DD-slug.md` with `layout`, `title`, `date` (+0700), `tags`.
+
+`/assets/...` in preview is served from this checkout (proxied via the local API).
 
 ## Tests
 
