@@ -1,0 +1,31 @@
+{
+  "name": "neitomic-editor",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n api,ui -c blue,green \"npm run dev:api\" \"npm run dev:ui\"",
+    "dev:api": "tsx watch server/index.ts",
+    "dev:ui": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.6",
+    "hono": "^4.11.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "concurrently": "^10.0.7",
+    "oxlint": "^1.90.0",
+    "tsx": "^4.21.0",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.6"
+  }
+}
