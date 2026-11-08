@@ -5,6 +5,7 @@ import { EditorView, highlightActiveLine, keymap } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags as t } from '@lezer/highlight'
+import { imageFileHandlers } from './imageInsert'
 
 type Props = {
   value: string
@@ -14,6 +15,7 @@ type Props = {
   /** iA-quiet typewriter emphasis on the active line. */
   focusMode?: boolean
   placeholder?: string
+  onImageError?: (message: string) => void
 }
 
 const inkHighlight = HighlightStyle.define([
@@ -92,6 +94,7 @@ export function MarkdownField({
   mode,
   focusMode = false,
   placeholder,
+  onImageError,
 }: Props) {
   const extensions = useMemo(
     () => [
@@ -104,12 +107,13 @@ export function MarkdownField({
       editorTheme,
       ...(mode === 'source' ? [sourceTheme] : []),
       ...(focusMode && mode === 'write' ? [focusTheme] : []),
+      imageFileHandlers({ onError: onImageError }),
       EditorView.contentAttributes.of({
         'aria-label': mode === 'source' ? 'Raw source' : 'Post body',
         spellcheck: mode === 'write' ? 'true' : 'false',
       }),
     ],
-    [mode, focusMode],
+    [mode, focusMode, onImageError],
   )
 
   return (
