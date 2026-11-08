@@ -45,9 +45,11 @@ Open the UI: library of `_posts/`, open a post. Default writing state is **Focus
 
 Run order when you click **Run coach** (or on panel open):
 
-1. **Local CLI** — detects `claude`, then `codex`, then `grok` on `PATH` (override with `EDITOR_REVIEW_CLI` / `EDITOR_REVIEW_CLI_PATH`)
+1. **Local CLI** — panel **CLI** control (`auto` / `claude` / `codex` / `grok`), plus **Model** and **Think** effort (persisted in `localStorage`)
 2. **HTTP LLM** — `EDITOR_REVIEW_API_KEY` or `OPENAI_API_KEY` (OpenAI-compatible chat completions)
 3. **Copy prompt** — copy the filled shared prompt into Cursor; **Paste reply** shows findings in the panel
+
+CLI flags wired from the panel: Claude `--model` / `--effort`; Codex `--model` / `-c model_reasoning_effort=…`; Grok `--model` / `--effort`.
 
 ```bash
 # preferred — local coding-agent CLI (same shell as `just editor`)
@@ -55,11 +57,12 @@ Run order when you click **Run coach** (or on panel open):
 # export EDITOR_REVIEW_CLI=claude        # force one
 # export EDITOR_REVIEW_CLI_PATH=/usr/local/bin/claude
 # export EDITOR_REVIEW_CLI=off           # skip CLI detection
+# export EDITOR_REVIEW_MODEL=sonnet      # env default for panel / HTTP
+# export EDITOR_REVIEW_EFFORT=medium
 
 # fallback — HTTP API
 export EDITOR_REVIEW_API_KEY=sk-...   # or OPENAI_API_KEY
 # export EDITOR_REVIEW_API_BASE=https://api.openai.com/v1
-# export EDITOR_REVIEW_MODEL=gpt-4o-mini
 ```
 
 Shared prompt (editor + `just review-post` + paste-into-Cursor): `tools/editor/prompts/writing-coach.md`.

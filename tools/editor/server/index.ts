@@ -201,6 +201,9 @@ app.post('/api/review', async (c) => {
     body?: string
     run?: boolean
     prefer?: 'auto' | 'cli' | 'llm'
+    cli?: 'auto' | 'claude' | 'codex' | 'grok'
+    model?: string
+    effort?: string
   }>()
   const title = typeof body.title === 'string' ? body.title : ''
   const postBody = typeof body.body === 'string' ? body.body : ''
@@ -231,6 +234,15 @@ app.post('/api/review', async (c) => {
     body.prefer === 'cli' || body.prefer === 'llm' || body.prefer === 'auto'
       ? body.prefer
       : 'auto'
+  const cli =
+    body.cli === 'claude' ||
+    body.cli === 'codex' ||
+    body.cli === 'grok' ||
+    body.cli === 'auto'
+      ? body.cli
+      : undefined
+  const model = typeof body.model === 'string' ? body.model : undefined
+  const effort = typeof body.effort === 'string' ? body.effort : undefined
 
   if (!wantRun) {
     return c.json({
@@ -242,7 +254,7 @@ app.post('/api/review', async (c) => {
     })
   }
 
-  const ran = await runCoachReview(prompt, { prefer })
+  const ran = await runCoachReview(prompt, { prefer, cli, model, effort })
   return c.json({
     mode: ran.mode,
     prompt,
@@ -250,10 +262,12 @@ app.post('/api/review', async (c) => {
     sections: ran.sections,
     error: ran.error,
     ...cfg,
-    // Reflect the CLI that actually ran when present
+    // Reflect the CLI / model / effort that actually ran when present
     cliId: ran.cliId ?? cfg.cliId,
     cliBinary: ran.cliBinary ?? cfg.cliBinary,
     cliConfigured: Boolean(ran.cliId ?? cfg.cliId),
+    runModel: ran.model ?? null,
+    runEffort: ran.effort ?? null,
   })
 })
 

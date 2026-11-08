@@ -78,7 +78,11 @@ async function main() {
     return
   }
 
-  const ran = await runCoachReview(prompt, { prefer: 'auto' })
+  const ran = await runCoachReview(prompt, {
+    prefer: 'auto',
+    model: process.env.EDITOR_REVIEW_MODEL?.trim() || null,
+    effort: process.env.EDITOR_REVIEW_EFFORT?.trim() || null,
+  })
   process.stdout.write(prompt.endsWith('\n') ? prompt : `${prompt}\n`)
   if (!ran.review) {
     console.error(ran.error || 'No review produced.')

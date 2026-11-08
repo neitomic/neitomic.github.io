@@ -393,6 +393,50 @@ code {
   color: var(--ink);
 }
 
+.review-controls {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+@media (max-width: 900px) {
+  .review-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+.review-control {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.review-control select,
+.review-control input {
+  font: inherit;
+  font-size: 0.9rem;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--ink);
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--bg) 70%, white);
+  width: 100%;
+}
+
+.review-control select:focus,
+.review-control input:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+
 .review-config {
   margin: 0;
   font-size: 0.85rem;

@@ -3,10 +3,21 @@ import {
   fetchReviewConfig,
   requestWritingReview,
   type CoachSection,
+  type ReviewCliId,
   type ReviewConfig,
   type ReviewResponse,
 } from './api'
 import { renderMarkdown } from './renderMarkdown'
+import {
+  DEFAULT_REVIEW_SETTINGS,
+  EFFORT_OPTIONS,
+  MODEL_PRESETS,
+  loadReviewSettings,
+  modelLabel,
+  saveReviewSettings,
+  type ReviewEffort,
+  type ReviewPanelSettings,
+} from './reviewSettings'
 
 type Props = {
   filename: string
@@ -14,6 +25,33 @@ type Props = {
   body: string
   onEnsureSaved: () => Promise<void>
   onClose: () => void
+}
+
+function applyEnvDefaults(
+  base: ReviewPanelSettings,
+  cfg: ReviewConfig,
+): ReviewPanelSettings {
+  // localStorage wins when already customized; env fills empty first-run defaults.
+  const next = { ...base }
+  if (
+    base.cli === DEFAULT_REVIEW_SETTINGS.cli &&
+    (cfg.envDefaults.cli === 'claude' ||
+      cfg.envDefaults.cli === 'codex' ||
+      cfg.envDefaults.cli === 'grok')
+  ) {
+    next.cli = cfg.envDefaults.cli
+  }
+  if (!base.model.trim() && cfg.envDefaults.model) {
+    next.model = cfg.envDefaults.model
+  }
+  if (
+    base.effort === DEFAULT_REVIEW_SETTINGS.effort &&
+    cfg.envDefaults.effort &&
+    EFFORT_OPTIONS.some((o) => o.value === cfg.envDefaults.effort)
+  ) {
+    next.effort = cfg.envDefaults.effort as ReviewEffort
+  }
+  return next
 }
 
 export function ReviewPane({
@@ -33,8 +71,35 @@ export function ReviewPane({
   const [showPrompt, setShowPrompt] = useState(false)
   const [showPaste, setShowPaste] = useState(false)
   const [pasteDraft, setPasteDraft] = useState('')
+  const [settings, setSettings] = useState<ReviewPanelSettings>(() =>
+    loadReviewSettings(),
+  )
+  const [settingsReady, setSettingsReady] = useState(false)
 
   const postPath = `_posts/${filename}`
+
+  function updateSettings(patch: Partial<ReviewPanelSettings>) {
+    setSettings((prev) => {
+      const next = { ...prev, ...patch }
+      saveReviewSettings(next)
+      return next
+    })
+  }
+
+  function syncConfigFromResult(ran: ReviewResponse) {
+    setConfig({
+      llmConfigured: ran.llmConfigured,
+      model: ran.model,
+      baseUrl: ran.baseUrl,
+      envHint: ran.envHint,
+      cliPreference: ran.cliPreference,
+      cliConfigured: ran.cliConfigured,
+      cliId: ran.cliId,
+      cliBinary: ran.cliBinary,
+      cliAvailable: ran.cliAvailable,
+      envDefaults: ran.envDefaults,
+    })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -58,39 +123,37 @@ export function ReviewPane({
         setConfig(cfg)
         setResult(prepared)
 
-        // Auto-run when a local CLI or API key is available — still on-demand (panel open).
-        if (cfg.cliConfigured || cfg.llmConfigured) {
-          setRunning(true)
-          try {
-            const ran = await requestWritingReview({
-              filename,
-              title,
-              body,
-              run: true,
-              prefer: 'auto',
-            })
-            if (!cancelled) {
-              setResult(ran)
-              setConfig({
-                llmConfigured: ran.llmConfigured,
-                model: ran.model,
-                baseUrl: ran.baseUrl,
-                envHint: ran.envHint,
-                cliPreference: ran.cliPreference,
-                cliConfigured: ran.cliConfigured,
-                cliId: ran.cliId,
-                cliBinary: ran.cliBinary,
-                cliAvailable: ran.cliAvailable,
-              })
-              if (ran.error) setError(ran.error)
-            }
-          } catch (err) {
-            if (!cancelled) {
-              setError(err instanceof Error ? err.message : String(err))
-            }
-          } finally {
-            if (!cancelled) setRunning(false)
+        const nextSettings = applyEnvDefaults(loadReviewSettings(), cfg)
+        setSettings(nextSettings)
+        saveReviewSettings(nextSettings)
+        setSettingsReady(true)
+
+        const canRun = cfg.cliConfigured || cfg.llmConfigured
+        if (!canRun) return
+
+        setRunning(true)
+        try {
+          const ran = await requestWritingReview({
+            filename,
+            title,
+            body,
+            run: true,
+            prefer: 'auto',
+            cli: nextSettings.cli,
+            model: nextSettings.model,
+            effort: nextSettings.effort,
+          })
+          if (!cancelled) {
+            setResult(ran)
+            syncConfigFromResult(ran)
+            if (ran.error) setError(ran.error)
           }
+        } catch (err) {
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : String(err))
+          }
+        } finally {
+          if (!cancelled) setRunning(false)
         }
       } catch (err) {
         if (!cancelled) {
@@ -109,7 +172,7 @@ export function ReviewPane({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- snapshot at mount
   }, [filename, title, body])
 
-  async function onRun(prefer: 'auto' | 'cli' | 'llm' = 'auto') {
+  async function onRun() {
     setRunning(true)
     setError(null)
     setPastedReview(null)
@@ -120,22 +183,14 @@ export function ReviewPane({
         title,
         body,
         run: true,
-        prefer,
+        prefer: 'auto',
+        cli: settings.cli,
+        model: settings.model,
+        effort: settings.effort,
       })
       setResult(ran)
-      setConfig({
-        llmConfigured: ran.llmConfigured,
-        model: ran.model,
-        baseUrl: ran.baseUrl,
-        envHint: ran.envHint,
-        cliPreference: ran.cliPreference,
-        cliConfigured: ran.cliConfigured,
-        cliId: ran.cliId,
-        cliBinary: ran.cliBinary,
-        cliAvailable: ran.cliAvailable,
-      })
-      if (ran.error && !ran.review) setError(ran.error)
-      else if (ran.error) setError(ran.error)
+      syncConfigFromResult(ran)
+      if (ran.error) setError(ran.error)
       else setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -185,12 +240,25 @@ export function ReviewPane({
     }))
   }, [sections])
 
+  const activeCliId: ReviewCliId | 'auto' = settings.cli
+  const modelPresets =
+    activeCliId === 'auto'
+      ? ['', 'sonnet', 'opus', 'gpt-5.4', 'grok-4']
+      : MODEL_PRESETS[activeCliId]
+
+  const availableIds = new Set(config?.cliAvailable.map((c) => c.id) ?? [])
+  const selectedMissing =
+    settings.cli !== 'auto' &&
+    config != null &&
+    !availableIds.has(settings.cli) &&
+    !config.llmConfigured
+
   const sourceLabel = pastedReview
     ? 'pasted'
     : result?.mode === 'cli'
-      ? `CLI · ${result.cliId ?? 'agent'}`
+      ? `CLI · ${result.cliId ?? 'agent'}${result.runModel ? ` · ${result.runModel}` : ''}${result.runEffort ? ` · ${result.runEffort}` : ''}`
       : result?.mode === 'llm'
-        ? `API · ${result.model ?? 'llm'}`
+        ? `API · ${result.runModel ?? result.model ?? 'llm'}`
         : null
 
   return (
@@ -218,25 +286,94 @@ export function ReviewPane({
         . You apply fixes — nothing rewrites the file.
       </p>
 
-      {config && (
+      <fieldset className="review-controls" disabled={running || loading}>
+        <legend className="sr-only">Coach run settings</legend>
+        <label className="review-control">
+          <span>CLI</span>
+          <select
+            value={settings.cli}
+            onChange={(e) =>
+              updateSettings({
+                cli: e.target.value as ReviewPanelSettings['cli'],
+              })
+            }
+          >
+            <option value="auto">Auto (first found)</option>
+            <option value="claude">
+              Claude{availableIds.has('claude') ? '' : ' — not on PATH'}
+            </option>
+            <option value="codex">
+              Codex{availableIds.has('codex') ? '' : ' — not on PATH'}
+            </option>
+            <option value="grok">
+              Grok{availableIds.has('grok') ? '' : ' — not on PATH'}
+            </option>
+          </select>
+        </label>
+
+        <label className="review-control">
+          <span>Model</span>
+          <input
+            list="review-model-presets"
+            value={settings.model}
+            placeholder="CLI default"
+            onChange={(e) => updateSettings({ model: e.target.value })}
+            spellCheck={false}
+          />
+          <datalist id="review-model-presets">
+            {modelPresets.map((m) => (
+              <option key={m || 'default'} value={m}>
+                {modelLabel(m)}
+              </option>
+            ))}
+          </datalist>
+        </label>
+
+        <label className="review-control">
+          <span>Think</span>
+          <select
+            value={settings.effort}
+            onChange={(e) =>
+              updateSettings({ effort: e.target.value as ReviewEffort })
+            }
+          >
+            {EFFORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </fieldset>
+
+      {settingsReady && config && (
         <p className="review-config" role="status">
-          {config.cliConfigured ? (
+          {selectedMissing ? (
             <>
-              CLI ready · <code>{config.cliId}</code>
-              {config.cliBinary ? (
+              Selected CLI not detected — Run coach will fall back to API key or
+              copy-prompt.
+            </>
+          ) : config.cliConfigured || config.llmConfigured ? (
+            <>
+              Ready
+              {config.cliConfigured ? (
                 <>
                   {' '}
-                  (<code>{config.cliBinary}</code>)
+                  · CLI <code>{config.cliId}</code>
+                </>
+              ) : (
+                <> · API key</>
+              )}
+              {settings.model.trim() ? (
+                <>
+                  {' '}
+                  · model <code>{settings.model.trim()}</code>
                 </>
               ) : null}
-            </>
-          ) : config.llmConfigured ? (
-            <>
-              LLM ready
-              {config.model ? (
+              {settings.effort !== 'default' ? (
                 <>
                   {' '}
-                  · <code>{config.model}</code>
+                  · think <code>{settings.effort}</code>
                 </>
               ) : null}
             </>
@@ -244,7 +381,7 @@ export function ReviewPane({
             <>
               No CLI / API key — copy the shared prompt into Cursor, paste the
               reply here, or install <code>claude</code> / <code>codex</code> /{' '}
-              <code>grok</code> (or set <code>EDITOR_REVIEW_API_KEY</code>).
+              <code>grok</code>.
             </>
           )}
         </p>
@@ -307,7 +444,7 @@ export function ReviewPane({
           disabled={
             running || loading || (!config?.cliConfigured && !config?.llmConfigured)
           }
-          onClick={() => void onRun('auto')}
+          onClick={() => void onRun()}
         >
           {running ? 'Running…' : 'Run coach'}
         </button>

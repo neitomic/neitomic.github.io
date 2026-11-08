@@ -1,5 +1,70 @@
 import { describe, expect, it } from 'vitest'
-import { parseCoachReview } from './reviewCli.ts'
+import {
+  buildCoachCliArgs,
+  normalizeEffortForCli,
+  parseCoachReview,
+} from './reviewCli.ts'
+
+describe('buildCoachCliArgs', () => {
+  it('passes model and effort to claude -p', () => {
+    const built = buildCoachCliArgs('claude', 'Review me', {
+      model: 'sonnet',
+      effort: 'high',
+    })
+    expect(built.args).toEqual([
+      '-p',
+      '--output-format',
+      'text',
+      '--model',
+      'sonnet',
+      '--effort',
+      'high',
+      'Review me',
+    ])
+    expect(built.stdin).toBeNull()
+  })
+
+  it('maps codex effort via -c model_reasoning_effort', () => {
+    const built = buildCoachCliArgs('codex', 'Prompt', {
+      model: 'gpt-5.4',
+      effort: 'max',
+    })
+    expect(built.args).toContain('exec')
+    expect(built.args).toContain('--model')
+    expect(built.args).toContain('gpt-5.4')
+    expect(built.args).toContain('-c')
+    expect(built.args).toContain('model_reasoning_effort=xhigh')
+    expect(built.stdin).toBe('Prompt')
+  })
+
+  it('uses grok --prompt-file with model and effort', () => {
+    const built = buildCoachCliArgs('grok', 'unused when file set', {
+      model: 'grok-4',
+      effort: 'medium',
+      promptFile: '/tmp/coach.md',
+    })
+    expect(built.args).toEqual([
+      '-p',
+      '--prompt-file',
+      '/tmp/coach.md',
+      '--output-format',
+      'plain',
+      '--model',
+      'grok-4',
+      '--effort',
+      'medium',
+    ])
+  })
+})
+
+describe('normalizeEffortForCli', () => {
+  it('maps minimal→low for claude and max→xhigh for codex', () => {
+    expect(normalizeEffortForCli('claude', 'minimal')).toBe('low')
+    expect(normalizeEffortForCli('codex', 'max')).toBe('xhigh')
+    expect(normalizeEffortForCli('grok', 'default')).toBeNull()
+  })
+})
+
 
 describe('parseCoachReview', () => {
   it('splits the four coach headings', () => {

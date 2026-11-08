@@ -179,6 +179,11 @@ export type ReviewConfig = {
   cliId: ReviewCliId | null
   cliBinary: string | null
   cliAvailable: Array<{ id: ReviewCliId; binary: string }>
+  envDefaults: {
+    cli: string
+    model: string | null
+    effort: string | null
+  }
 }
 
 export type ReviewResponse = ReviewConfig & {
@@ -187,6 +192,8 @@ export type ReviewResponse = ReviewConfig & {
   review: string | null
   sections: CoachSection[]
   error?: string
+  runModel?: string | null
+  runEffort?: string | null
 }
 
 export function fetchReviewConfig() {
@@ -199,6 +206,9 @@ export function requestWritingReview(input: {
   body: string
   run?: boolean
   prefer?: 'auto' | 'cli' | 'llm'
+  cli?: ReviewCliId | 'auto'
+  model?: string
+  effort?: string
 }) {
   return fetchJson<ReviewResponse>('/api/review', {
     method: 'POST',
@@ -209,6 +219,9 @@ export function requestWritingReview(input: {
       body: input.body,
       run: input.run === true,
       prefer: input.prefer ?? 'auto',
+      cli: input.cli,
+      model: input.model,
+      effort: input.effort,
     }),
   })
 }

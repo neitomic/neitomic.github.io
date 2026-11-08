@@ -115,11 +115,132 @@ function guessCliIdFromPath(resolved: string): ReviewCliId {
   return 'claude'
 }
 
+export type ReviewEffortLevel =
+  | 'default'
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+  | 'max'
+
+export type CliRunOptions = {
+  cwd?: string
+  timeoutMs?: number
+  /** Model id/alias; empty/undefined → CLI default. */
+  model?: string | null
+  /** Think / reasoning effort; `default` or empty → omit flag. */
+  effort?: ReviewEffortLevel | string | null
+}
+
 export type CliRunResult = {
   cli: ReviewCliId
   binary: string
   review: string
   stderr: string
+  model: string | null
+  effort: string | null
+  args: string[]
+}
+
+/** Normalize effort for a given CLI (skip unsupported / default). */
+export function normalizeEffortForCli(
+  cli: ReviewCliId,
+  effort: string | null | undefined,
+): string | null {
+  const raw = (effort ?? '').trim().toLowerCase()
+  if (!raw || raw === 'default') return null
+
+  if (cli === 'claude') {
+    // Claude --effort: low | medium | high | xhigh | max | ultracode
+    if (raw === 'minimal') return 'low'
+    if (
+      raw === 'low' ||
+      raw === 'medium' ||
+      raw === 'high' ||
+      raw === 'xhigh' ||
+      raw === 'max' ||
+      raw === 'ultracode'
+    ) {
+      return raw
+    }
+    return null
+  }
+
+  if (cli === 'codex') {
+    // model_reasoning_effort: minimal | low | medium | high | xhigh (max→xhigh)
+    if (raw === 'max') return 'xhigh'
+    if (
+      raw === 'minimal' ||
+      raw === 'low' ||
+      raw === 'medium' ||
+      raw === 'high' ||
+      raw === 'xhigh'
+    ) {
+      return raw
+    }
+    return null
+  }
+
+  // grok --effort / --reasoning-effort
+  if (raw === 'ultracode') return 'xhigh'
+  if (
+    raw === 'none' ||
+    raw === 'minimal' ||
+    raw === 'low' ||
+    raw === 'medium' ||
+    raw === 'high' ||
+    raw === 'xhigh' ||
+    raw === 'max'
+  ) {
+    return raw
+  }
+  return null
+}
+
+/**
+ * Build argv for a CLI coach run (excluding the binary).
+ * Prompt placement: claude/codex may use argv or stdin; grok uses --prompt-file.
+ */
+export function buildCoachCliArgs(
+  cli: ReviewCliId,
+  filledPrompt: string,
+  options: { model?: string | null; effort?: string | null; promptFile?: string } = {},
+): { args: string[]; stdin: string | null; model: string | null; effort: string | null } {
+  const model = options.model?.trim() || null
+  const effort = normalizeEffortForCli(cli, options.effort)
+  const args: string[] = []
+
+  if (cli === 'claude') {
+    args.push('-p', '--output-format', 'text')
+    if (model) args.push('--model', model)
+    if (effort) args.push('--effort', effort)
+    if (filledPrompt.length < 100_000) {
+      args.push(filledPrompt)
+      return { args, stdin: null, model, effort }
+    }
+    return { args, stdin: filledPrompt, model, effort }
+  }
+
+  if (cli === 'codex') {
+    args.push('exec', '--ephemeral')
+    if (model) args.push('--model', model)
+    if (effort) args.push('-c', `model_reasoning_effort=${effort}`)
+    args.push('-')
+    return { args, stdin: filledPrompt, model, effort }
+  }
+
+  // grok
+  args.push('-p')
+  if (options.promptFile) {
+    args.push('--prompt-file', options.promptFile)
+  } else {
+    args.push(filledPrompt)
+  }
+  args.push('--output-format', 'plain')
+  if (model) args.push('--model', model)
+  if (effort) args.push('--effort', effort)
+  return { args, stdin: null, model, effort }
 }
 
 type SpawnResult = { code: number | null; stdout: string; stderr: string }
@@ -182,7 +303,7 @@ function runProcess(
 export async function runCoachCli(
   filledPrompt: string,
   cli: DetectedCli,
-  options: { cwd?: string; timeoutMs?: number } = {},
+  options: CliRunOptions = {},
 ): Promise<CliRunResult> {
   const binary = cli.resolvedPath || cli.binary
   const cwd = options.cwd
@@ -190,41 +311,24 @@ export async function runCoachCli(
 
   let tmpDir: string | null = null
   try {
-    let result: SpawnResult
-
-    if (cli.id === 'claude') {
-      // Non-interactive print mode. Prefer argv for typical post size; stdin fallback for long drafts.
-      if (filledPrompt.length < 100_000) {
-        result = await runProcess(
-          binary,
-          ['-p', '--output-format', 'text', filledPrompt],
-          { cwd, timeoutMs },
-        )
-      } else {
-        result = await runProcess(
-          binary,
-          ['-p', '--output-format', 'text'],
-          { cwd, stdin: filledPrompt, timeoutMs },
-        )
-      }
-    } else if (cli.id === 'codex') {
-      // `codex exec -` reads the prompt from stdin; final agent message → stdout.
-      result = await runProcess(binary, ['exec', '--ephemeral', '-'], {
-        cwd,
-        stdin: filledPrompt,
-        timeoutMs,
-      })
-    } else {
-      // grok: --prompt-file avoids argv length issues
+    let promptFile: string | undefined
+    if (cli.id === 'grok') {
       tmpDir = await mkdtemp(path.join(os.tmpdir(), 'editor-review-'))
-      const promptFile = path.join(tmpDir, 'coach-prompt.md')
+      promptFile = path.join(tmpDir, 'coach-prompt.md')
       await writeFile(promptFile, filledPrompt, 'utf8')
-      result = await runProcess(
-        binary,
-        ['-p', '--prompt-file', promptFile, '--output-format', 'plain'],
-        { cwd, timeoutMs },
-      )
     }
+
+    const built = buildCoachCliArgs(cli.id, filledPrompt, {
+      model: options.model,
+      effort: options.effort,
+      promptFile,
+    })
+
+    const result = await runProcess(binary, built.args, {
+      cwd,
+      stdin: built.stdin ?? undefined,
+      timeoutMs,
+    })
 
     const review = result.stdout.trim()
     if (result.code !== 0) {
@@ -242,6 +346,9 @@ export async function runCoachCli(
       binary: cli.binary,
       review,
       stderr: result.stderr.trim(),
+      model: built.model,
+      effort: built.effort,
+      args: built.args,
     }
   } finally {
     if (tmpDir) {
