@@ -71,6 +71,10 @@ exclude:
   - README.md
   - LICENSE.md
   - vendor
+  - tools
+  - node_modules
+  - package.json
+  - package-lock.json
 
 Blog: /blog
 
