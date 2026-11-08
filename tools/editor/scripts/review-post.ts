@@ -2,18 +2,14 @@
 /**
  * Fill the shared writing-coach prompt for a _posts file.
  * Usage (from repo root): just review-post FILE=_posts/YYYY-MM-DD-slug.md
- * Optional LLM: EDITOR_REVIEW_API_KEY=… just review-post FILE=… --run
+ * Optional run: prefers local claude/codex/grok CLI, else EDITOR_REVIEW_API_KEY.
  */
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import matter from 'gray-matter'
-import {
-  buildFilledPrompt,
-  getReviewLlmConfig,
-  runCoachLlm,
-} from '../server/review.ts'
+import { buildFilledPrompt, runCoachReview } from '../server/review.ts'
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -24,12 +20,13 @@ function usage(): never {
   console.error(`Usage: review-post [--run] <path-to-post.md>
 
 Fills tools/editor/prompts/writing-coach.md with path, title, and body.
-Prints the prompt to stdout. With --run and EDITOR_REVIEW_API_KEY / OPENAI_API_KEY,
-prints prompt, then ---, then the LLM review.
+Prints the prompt to stdout. With --run, prefers a local CLI (claude / codex / grok),
+then EDITOR_REVIEW_API_KEY / OPENAI_API_KEY; prints prompt, then ---, then the review.
 
 Examples:
   just review-post FILE=_posts/2026-11-08-my-personal-gist-inbox.md
-  EDITOR_REVIEW_API_KEY=sk-... just review-post FILE=_posts/... --run
+  just review-post FILE=_posts/... -- --run
+  EDITOR_REVIEW_CLI=claude just review-post FILE=_posts/... -- --run
 `)
   process.exit(2)
 }
@@ -81,19 +78,23 @@ async function main() {
     return
   }
 
-  const cfg = getReviewLlmConfig()
-  if (!cfg.configured) {
-    console.error(
-      'No EDITOR_REVIEW_API_KEY / OPENAI_API_KEY — printing prompt only.',
-    )
-    process.stdout.write(prompt.endsWith('\n') ? prompt : `${prompt}\n`)
+  const ran = await runCoachReview(prompt, {
+    prefer: 'auto',
+    model: process.env.EDITOR_REVIEW_MODEL?.trim() || null,
+    effort: process.env.EDITOR_REVIEW_EFFORT?.trim() || null,
+  })
+  process.stdout.write(prompt.endsWith('\n') ? prompt : `${prompt}\n`)
+  if (!ran.review) {
+    console.error(ran.error || 'No review produced.')
     process.exit(1)
   }
-
-  const review = await runCoachLlm(prompt, cfg)
-  process.stdout.write(prompt.endsWith('\n') ? prompt : `${prompt}\n`)
   process.stdout.write('\n---\n\n')
-  process.stdout.write(review.endsWith('\n') ? review : `${review}\n`)
+  if (ran.mode === 'cli') {
+    console.error(`[review-post] via CLI ${ran.cliId}`)
+  } else if (ran.mode === 'llm') {
+    console.error('[review-post] via API key')
+  }
+  process.stdout.write(ran.review.endsWith('\n') ? ran.review : `${ran.review}\n`)
 }
 
 main().catch((err) => {
